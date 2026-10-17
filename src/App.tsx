@@ -232,7 +232,7 @@ export default function App() {
 function NavigateToApp(){return <Navigate replace to="/app"/>}
 function Protected({ children, profile, userId, error }: { children: React.ReactNode; profile: Profile|null; userId: string|null; error?: string; onLogout:()=>void }) {
   if(!userId)return <div className="loading-screen">Mengalihkan ke login...</div>
-  if(!profile)return <div className="loading-screen"><div className="form-error">Profil belum tersedia. Jalankan supabase/migrations/003_ensure_profile_rpc.sql di Supabase SQL Editor.{error?<><br/><small>Detail: {error}</small></>:null}</div><Link to="/login">Kembali ke login</Link></div>
+  if(!profile)return <div className="loading-screen"><div className="form-error">Profil belum tersedia. Jalankan supabase/schema.sql di Supabase SQL Editor.{error?<><br/><small>Detail: {error}</small></>:null}</div><Link to="/login">Kembali ke login</Link></div>
   return <>{children}</>
 }
 import { Navigate } from 'react-router-dom'

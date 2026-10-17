@@ -18,8 +18,8 @@ Aplikasi web celengan NFC dengan pencatatan tabungan manual. Frontend React + Vi
 
 ## 1. Siapkan Supabase
 1. Buat proyek di Supabase.
-2. Buka SQL Editor.
-3. Jalankan `supabase/migrations/001_initial_schema.sql` secara utuh.
+2. Buka **SQL Editor**.
+3. Jalankan `supabase/schema.sql` secara utuh. File ini sudah mencakup seluruh tabel, index, trigger, fungsi RPC, RLS policies, dan perbaikan profil.
 4. Di Authentication → URL Configuration, atur Site URL ke domain Vercel dan tambahkan URL preview yang diperlukan ke Redirect URLs.
 5. Untuk uji cepat, pengaturan konfirmasi email dapat disesuaikan di Authentication → Providers → Email. Jika konfirmasi diaktifkan, pengguna harus memverifikasi email sebelum login.
 
@@ -73,13 +73,6 @@ NTAG213 hanya membuka URL; tag ini tidak membuktikan kepemilikan. Kepemilikan te
 - Admin perlu membuat celengan dan menetapkan kepemilikan. Alur klaim mandiri dengan kode rahasia belum termasuk V1.
 - Aplikasi ini adalah pencatatan tabungan pribadi, bukan rekening bank dan tidak menerima/menyimpan dana pengguna.
 
+## Pemeliharaan & Perbaikan Database
+Cukup jalankan `supabase/schema.sql` di **Supabase Dashboard → SQL Editor → Run**. File ini aman dijalankan berulang kali (*idempotent*), secara otomatis memvalidasi struktur tabel, memastikan fungsi `ensure_my_profile()` aktif, dan mem-backfill profil untuk semua user yang ada.
 
-## Perbaikan login: "Profil belum tersedia"
-
-Jika registrasi berhasil tetapi login menampilkan pesan "Profil belum tersedia", biasanya akun sudah ada di `auth.users` tetapi barisnya belum ada di `public.profiles`. Jalankan file `supabase/migrations/002_backfill_profiles.sql` di **Supabase Dashboard → SQL Editor → New query → Run**. Script ini aman dijalankan ulang, mempertahankan profil/role yang sudah ada, dan membuat ulang trigger untuk pendaftaran berikutnya.
-
-Setelah query selesai, hasil `auth_users_missing_profiles` seharusnya `0`. Pastikan aplikasi memakai URL dan anon/publishable key dari proyek Supabase yang sama dengan tempat SQL dijalankan. Jangan pernah menaruh `service_role` key di frontend.
-
-
-## Perbaikan login v2: profil dibuat otomatis oleh aplikasi
-Jalankan `supabase/migrations/003_ensure_profile_rpc.sql` di SQL Editor (sekali saja). File ini mem-backfill semua akun lama dan membuat fungsi `ensure_my_profile()`. Setelah itu, jika profil ternyata belum ada saat login, aplikasi membuatnya sendiri. Jika masih gagal, layar error kini menampilkan pesan asli dari Supabase pada baris "Detail".
