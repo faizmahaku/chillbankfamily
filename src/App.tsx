@@ -2430,6 +2430,7 @@ export default function App() {
   const [sessionReady, setSessionReady] = useState(false)
   const [userId, setUserId] = useState<string | null>(null)
   const [profile, setProfile] = useState<Profile | null>(null)
+  const [dataLoading, setDataLoading] = useState(false)
   const [banks, setBanks] = useState<PiggyBank[]>([])
   const [entries, setEntries] = useState<SavingsEntry[]>([])
   const [goals, setGoals] = useState<SavingsGoal[]>([])
@@ -2450,39 +2451,51 @@ export default function App() {
       setGoals([])
       setOrders([])
       setGlobalError('')
+      setDataLoading(false)
       return
     }
 
-    const readProfile = () =>
-      supabase!.from('profiles').select('id,full_name,role,phone,bio,avatar_color').eq('id', uid).maybeSingle()
+    setDataLoading(true)
+    try {
+      const readProfile = () =>
+        supabase!.from('profiles').select('id,full_name,role,phone,bio,avatar_color').eq('id', uid).maybeSingle()
 
-    let { data: p, error: pe } = await readProfile()
-    if (!p && !pe) {
-      const { error: re } = await supabase.rpc('ensure_my_profile')
-      if (re) pe = re
-      else {
-        const r = await readProfile()
-        p = r.data
-        pe = r.error
+      let { data: p, error: pe } = await readProfile()
+      if (!p && !pe) {
+        const { error: re } = await supabase.rpc('ensure_my_profile')
+        if (re) pe = re
+        else {
+          const r = await readProfile()
+          p = r.data
+          pe = r.error
+        }
+      }
+
+      const [{ data: b, error: be }, { data: e, error: ee }, { data: g, error: ge }, { data: o, error: oe }] =
+        await Promise.all([
+          supabase.from('piggy_banks').select('*').order('created_at', { ascending: false }),
+          supabase.from('savings_entries').select('*').eq('user_id', uid).order('created_at', { ascending: false }).limit(300),
+          supabase.from('savings_goals').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
+          supabase.from('piggy_bank_orders').select('*').order('created_at', { ascending: false }),
+        ])
+
+      if (seq !== loadSeq.current) return
+      const err = pe || be || ee || ge || oe
+      setGlobalError(err ? err.message : '')
+      setProfile(p as Profile | null)
+      setBanks((b || []) as PiggyBank[])
+      setEntries((e || []) as SavingsEntry[])
+      setGoals((g || []) as SavingsGoal[])
+      setOrders((o || []) as PiggyBankOrder[])
+    } catch (e: any) {
+      if (seq === loadSeq.current) {
+        setGlobalError(e?.message || 'Gagal memuat profil')
+      }
+    } finally {
+      if (seq === loadSeq.current) {
+        setDataLoading(false)
       }
     }
-
-    const [{ data: b, error: be }, { data: e, error: ee }, { data: g, error: ge }, { data: o, error: oe }] =
-      await Promise.all([
-        supabase.from('piggy_banks').select('*').order('created_at', { ascending: false }),
-        supabase.from('savings_entries').select('*').eq('user_id', uid).order('created_at', { ascending: false }).limit(300),
-        supabase.from('savings_goals').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
-        supabase.from('piggy_bank_orders').select('*').order('created_at', { ascending: false }),
-      ])
-
-    if (seq !== loadSeq.current) return
-    const err = pe || be || ee || ge || oe
-    setGlobalError(err ? err.message : '')
-    setProfile(p as Profile | null)
-    setBanks((b || []) as PiggyBank[])
-    setEntries((e || []) as SavingsEntry[])
-    setGoals((g || []) as SavingsGoal[])
-    setOrders((o || []) as PiggyBankOrder[])
   }
 
   useEffect(() => {
@@ -2597,7 +2610,7 @@ export default function App() {
         <Route
           path="/login"
           element={
-            userId ? (
+            userId && profile ? (
               <Navigate replace to="/app" />
             ) : (
               <AuthPage mode="login" onAuth={(e, p) => handleAuth('login', e, p)} />
@@ -2607,7 +2620,7 @@ export default function App() {
         <Route
           path="/register"
           element={
-            userId ? (
+            userId && profile ? (
               <Navigate replace to="/app" />
             ) : (
               <AuthPage mode="register" onAuth={(e, p, n, r) => handleAuth('register', e, p, n, r)} />
@@ -2625,7 +2638,7 @@ export default function App() {
         <Route
           path="/app"
           element={
-            <Protected profile={profile} userId={userId} error={globalError}>
+            <Protected profile={profile} userId={userId} loading={dataLoading} error={globalError}>
               <AppShell profile={profile!} onLogout={handleLogout} onOpenScan={() => setShowScanner(true)}>
                 <Dashboard
                   profile={profile!}
@@ -2643,7 +2656,7 @@ export default function App() {
         <Route
           path="/app/celengan"
           element={
-            <Protected profile={profile} userId={userId} error={globalError}>
+            <Protected profile={profile} userId={userId} loading={dataLoading} error={globalError}>
               <AppShell profile={profile!} onLogout={handleLogout} onOpenScan={() => setShowScanner(true)}>
                 <BanksPage banks={banks} entries={entries} refresh={refresh} profile={profile!} />
               </AppShell>
@@ -2654,7 +2667,7 @@ export default function App() {
         <Route
           path="/app/celengan/:id"
           element={
-            <Protected profile={profile} userId={userId} error={globalError}>
+            <Protected profile={profile} userId={userId} loading={dataLoading} error={globalError}>
               <AppShell profile={profile!} onLogout={handleLogout} onOpenScan={() => setShowScanner(true)}>
                 <BankDetailPage banks={banks} entries={entries} />
               </AppShell>
@@ -2665,7 +2678,7 @@ export default function App() {
         <Route
           path="/app/target"
           element={
-            <Protected profile={profile} userId={userId} error={globalError}>
+            <Protected profile={profile} userId={userId} loading={dataLoading} error={globalError}>
               <AppShell profile={profile!} onLogout={handleLogout} onOpenScan={() => setShowScanner(true)}>
                 <GoalsPage goals={goals} banks={banks} entries={entries} refresh={refresh} />
               </AppShell>
@@ -2676,7 +2689,7 @@ export default function App() {
         <Route
           path="/app/riwayat"
           element={
-            <Protected profile={profile} userId={userId} error={globalError}>
+            <Protected profile={profile} userId={userId} loading={dataLoading} error={globalError}>
               <AppShell profile={profile!} onLogout={handleLogout} onOpenScan={() => setShowScanner(true)}>
                 <HistoryPage entries={entries} banks={banks} />
               </AppShell>
@@ -2687,7 +2700,7 @@ export default function App() {
         <Route
           path="/app/pesanan"
           element={
-            <Protected profile={profile} userId={userId} error={globalError}>
+            <Protected profile={profile} userId={userId} loading={dataLoading} error={globalError}>
               <AppShell profile={profile!} onLogout={handleLogout} onOpenScan={() => setShowScanner(true)}>
                 <OrdersPage
                   orders={orders.filter((o) => o.user_id === userId || profile?.role === 'admin')}
@@ -2701,7 +2714,7 @@ export default function App() {
         <Route
           path="/app/profil"
           element={
-            <Protected profile={profile} userId={userId} error={globalError}>
+            <Protected profile={profile} userId={userId} loading={dataLoading} error={globalError}>
               <AppShell profile={profile!} onLogout={handleLogout} onOpenScan={() => setShowScanner(true)}>
                 <ProfilePage profile={profile!} refresh={refresh} />
               </AppShell>
@@ -2712,7 +2725,7 @@ export default function App() {
         <Route
           path="/admin"
           element={
-            <Protected profile={profile} userId={userId} error={globalError}>
+            <Protected profile={profile} userId={userId} loading={dataLoading} error={globalError}>
               <AppShell profile={profile!} onLogout={handleLogout} onOpenScan={() => setShowScanner(true)}>
                 <AdminPage profile={profile!} banks={banks} orders={orders} refresh={refresh} />
               </AppShell>
@@ -2750,21 +2763,37 @@ function Protected({
   children,
   profile,
   userId,
+  loading,
   error,
 }: {
   children: React.ReactNode
   profile: Profile | null
   userId: string | null
+  loading: boolean
   error?: string
 }) {
   if (!userId) {
     return <div className="loading-screen">Mengalihkan ke halaman login...</div>
   }
+
+  // Jika data masih dalam proses pengambilan dari database, tampilkan animasi loading halus
+  if (loading || (!profile && !error)) {
+    return (
+      <div className="loading-screen">
+        <div className="avatar" style={{ width: 58, height: 58, animation: 'pulse 1.5s infinite' }}>
+          <Wallet size={28} />
+        </div>
+        <p style={{ fontWeight: 600, color: 'var(--primary)', marginTop: 8 }}>Menyiapkan akun keluarga...</p>
+      </div>
+    )
+  }
+
+  // Hanya jika pengambilan data selesai dan profil tidak ditemukan
   if (!profile) {
     return (
       <div className="loading-screen" style={{ padding: 24, textAlign: 'center' }}>
         <div className="form-error">
-          Profil belum siap. Pastikan script SQL <code>supabase/schema.sql</code> sudah dijalankan di Supabase Dashboard.
+          Profil belum siap. Silakan coba masuk kembali.
           {error && (
             <div style={{ marginTop: 8, fontSize: '0.8rem' }}>
               Detail error: {error}
