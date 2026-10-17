@@ -410,14 +410,24 @@ function AppShell({
 
   useEffect(() => setOpen(false), [location.pathname])
 
-  const nav = [
-    { to: '/app', label: 'Ringkasan', icon: Home, end: true },
-    { to: '/app/celengan', label: 'Celengan Keluarga', icon: Wallet },
-    { to: '/app/target', label: 'Target Tabungan', icon: Target },
-    { to: '/app/riwayat', label: 'Mutasi Transaksi', icon: Coins },
-    { to: '/app/pesanan', label: 'Pesan Celengan', icon: Box },
-    { to: '/app/profil', label: 'Profil Anggota', icon: UserRound },
-  ]
+  const isAdmin = profile?.role === 'admin'
+
+  const nav = isAdmin
+    ? [
+        { to: '/admin', label: 'Dashboard Overview', icon: ShieldCheck, end: true },
+        { to: '/admin/pesanan', label: 'Pesanan Masuk', icon: Box },
+        { to: '/admin/celengan', label: 'Inventaris Celengan', icon: Wallet },
+        { to: '/admin/users', label: 'Kelola Pengguna', icon: Users },
+        { to: '/app/profil', label: 'Profil Admin', icon: UserRound },
+      ]
+    : [
+        { to: '/app', label: 'Ringkasan', icon: Home, end: true },
+        { to: '/app/celengan', label: 'Celengan Keluarga', icon: Wallet },
+        { to: '/app/target', label: 'Target Tabungan', icon: Target },
+        { to: '/app/riwayat', label: 'Mutasi Transaksi', icon: Coins },
+        { to: '/app/pesanan', label: 'Pesan Celengan', icon: Box },
+        { to: '/app/profil', label: 'Profil Anggota', icon: UserRound },
+      ]
 
   const roleLabel: Record<FamilyRole, string> = {
     parent: 'Kepala Keluarga / Orang Tua',
@@ -432,7 +442,9 @@ function AppShell({
       <aside className={`sidebar ${open ? 'sidebar-open' : ''}`}>
         <Brand />
 
-        <div className="side-caption">NAVIGASI KELUARGA</div>
+        <div className="side-caption">
+          {isAdmin ? 'NAVIGASI ADMINISTRATOR' : 'NAVIGASI KELUARGA'}
+        </div>
         <nav className="side-nav">
           {nav.map((item) => (
             <NavLink
@@ -456,14 +468,15 @@ function AppShell({
             Pindai NFC / QR
           </button>
 
-          {profile?.role === 'admin' && (
-            <>
-              <div className="side-caption side-caption-gap">ADMINISTRATOR</div>
-              <NavLink to="/admin" className={({ isActive }) => `side-link ${isActive ? 'active' : ''}`}>
-                <ShieldCheck size={18} />
-                Panel Admin
-              </NavLink>
-            </>
+          {isAdmin && (
+            <Link
+              to="/"
+              className="side-link"
+              style={{ color: 'var(--text-muted)', fontSize: '0.84rem', marginTop: 4 }}
+            >
+              <Globe size={16} />
+              Pratinjau Web Publik
+            </Link>
           )}
         </nav>
 
@@ -491,7 +504,7 @@ function AppShell({
               {open ? <X size={22} /> : <Menu size={22} />}
             </button>
             <span className="eyebrow" style={{ margin: 0 }}>
-              <span className="eyebrow-dot" /> Chillbank Family
+              <span className="eyebrow-dot" /> {isAdmin ? 'Chillbank Admin Panel' : 'Chillbank Family'}
             </span>
           </div>
 
@@ -510,27 +523,55 @@ function AppShell({
 
       {/* Mobile Bottom Navigation Bar */}
       <nav className="mobile-bottom-nav">
-        <NavLink to="/app" end className={({ isActive }) => `bottom-tab ${isActive ? 'active' : ''}`}>
-          <Home size={20} />
-          <span>Beranda</span>
-        </NavLink>
-        <NavLink to="/app/celengan" className={({ isActive }) => `bottom-tab ${isActive ? 'active' : ''}`}>
-          <Wallet size={20} />
-          <span>Celengan</span>
-        </NavLink>
+        {isAdmin ? (
+          <>
+            <NavLink to="/admin" end className={({ isActive }) => `bottom-tab ${isActive ? 'active' : ''}`}>
+              <ShieldCheck size={20} />
+              <span>Dashboard</span>
+            </NavLink>
+            <NavLink to="/admin/pesanan" className={({ isActive }) => `bottom-tab ${isActive ? 'active' : ''}`}>
+              <Box size={20} />
+              <span>Pesanan</span>
+            </NavLink>
 
-        <button className="bottom-scan-btn" onClick={onOpenScan} aria-label="Pindai Celengan">
-          <SmartphoneNfc size={22} />
-        </button>
+            <button className="bottom-scan-btn" onClick={onOpenScan} aria-label="Pindai Celengan">
+              <SmartphoneNfc size={22} />
+            </button>
 
-        <NavLink to="/app/target" className={({ isActive }) => `bottom-tab ${isActive ? 'active' : ''}`}>
-          <Target size={20} />
-          <span>Target</span>
-        </NavLink>
-        <NavLink to="/app/profil" className={({ isActive }) => `bottom-tab ${isActive ? 'active' : ''}`}>
-          <UserRound size={20} />
-          <span>Profil</span>
-        </NavLink>
+            <NavLink to="/admin/celengan" className={({ isActive }) => `bottom-tab ${isActive ? 'active' : ''}`}>
+              <Wallet size={20} />
+              <span>Celengan</span>
+            </NavLink>
+            <NavLink to="/admin/users" className={({ isActive }) => `bottom-tab ${isActive ? 'active' : ''}`}>
+              <Users size={20} />
+              <span>Pengguna</span>
+            </NavLink>
+          </>
+        ) : (
+          <>
+            <NavLink to="/app" end className={({ isActive }) => `bottom-tab ${isActive ? 'active' : ''}`}>
+              <Home size={20} />
+              <span>Beranda</span>
+            </NavLink>
+            <NavLink to="/app/celengan" className={({ isActive }) => `bottom-tab ${isActive ? 'active' : ''}`}>
+              <Wallet size={20} />
+              <span>Celengan</span>
+            </NavLink>
+
+            <button className="bottom-scan-btn" onClick={onOpenScan} aria-label="Pindai Celengan">
+              <SmartphoneNfc size={22} />
+            </button>
+
+            <NavLink to="/app/target" className={({ isActive }) => `bottom-tab ${isActive ? 'active' : ''}`}>
+              <Target size={20} />
+              <span>Target</span>
+            </NavLink>
+            <NavLink to="/app/profil" className={({ isActive }) => `bottom-tab ${isActive ? 'active' : ''}`}>
+              <UserRound size={20} />
+              <span>Profil</span>
+            </NavLink>
+          </>
+        )}
       </nav>
     </div>
   )
@@ -2177,180 +2218,313 @@ function ProfilePage({ profile, refresh }: { profile: Profile; refresh: () => Pr
 // ------------------------------------------------------------------------------
 // Dashboard Admin (/admin)
 // ------------------------------------------------------------------------------
-function AdminPage({
-  profile,
+// ------------------------------------------------------------------------------
+// 1. Dashboard Overview Admin (/admin)
+// ------------------------------------------------------------------------------
+function AdminDashboardPage({
   banks,
   orders,
-  refresh,
+  allUsers,
+  onOpenScan,
 }: {
-  profile: Profile
   banks: PiggyBank[]
   orders: PiggyBankOrder[]
-  refresh: () => Promise<void>
+  allUsers: Profile[]
+  onOpenScan: () => void
 }) {
-  const [serial, setSerial] = useState('')
-  const [name, setName] = useState('Celengan Chillbank')
-  const [category, setCategory] = useState('smart-classic')
-  const [owner, setOwner] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [msg, setMsg] = useState('')
-  const [err, setErr] = useState('')
-
-  if (profile.role !== 'admin') {
-    return (
-      <EmptyState
-        icon={<ShieldAlert size={48} />}
-        title="Akses Ditolak"
-        text="Hanya akun dengan peran administrator yang dapat membuka halaman ini."
-      />
-    )
-  }
-
-  async function submitBank(e: FormEvent) {
-    e.preventDefault()
-    if (!supabase) return
-    setBusy(true)
-    setMsg('')
-    setErr('')
-    try {
-      const { data, error: rpcErr } = await supabase.rpc('admin_create_bank', {
-        p_serial: serial.trim().toUpperCase(),
-        p_name: name.trim(),
-        p_owner_id: owner.trim() || null,
-        p_category: category,
-        p_color: 'emerald',
-        p_nfc_uid: null,
-      })
-      if (rpcErr) throw rpcErr
-      setMsg(`Celengan baru berhasil didaftarkan! (ID: ${data})`)
-      setSerial('')
-      await refresh()
-    } catch (e: any) {
-      setErr(errorText(e))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function updateOrderStatus(orderId: string, status: PiggyBankOrder['status'], tracking?: string) {
-    if (!supabase) return
-    const { error } = await supabase
-      .from('piggy_bank_orders')
-      .update({ status, tracking_number: tracking || null })
-      .eq('id', orderId)
-    if (error) alert(error.message)
-    else await refresh()
-  }
+  const pendingOrders = orders.filter((o) => ['pending', 'confirmed', 'processing'].includes(o.status))
+  const activeBanks = banks.filter((b) => b.status === 'active')
+  const totalUnitsOrdered = orders.reduce((acc, o) => acc + (o.quantity || 1), 0)
 
   return (
     <>
       <div className="page-heading">
         <div>
-          <div className="eyebrow">SISTEM KONTROL PLATFORM</div>
+          <div className="eyebrow">
+            <span className="eyebrow-dot" /> SISTEM KONTROL PLATFORM
+          </div>
           <h1>Dashboard Administrator</h1>
-          <p>Registrasi produk celengan fisik, programming NFC NTAG213, dan manajemen pesanan.</p>
+          <p>Ringkasan performa perangkat fisik, pesanan pelanggan, dan ekosistem akun keluarga.</p>
+        </div>
+        <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+          <Button kind="secondary" onClick={onOpenScan}>
+            <SmartphoneNfc size={16} /> Pindai NFC / QR
+          </Button>
+          <Link to="/admin/celengan" className="button button-primary">
+            <Plus size={16} /> + Daftarkan Celengan
+          </Link>
         </div>
       </div>
 
+      {/* KPI Cards Grid */}
+      <div className="stat-grid" style={{ marginBottom: 24 }}>
+        <div className="stat-card">
+          <span className="stat-icon" style={{ background: 'var(--primary-light)', color: 'var(--primary)' }}>
+            <Wallet size={22} />
+          </span>
+          <div>
+            <b>{banks.length} Unit</b>
+            <small>Total Celengan ({activeBanks.length} Aktif)</small>
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <span className="stat-icon" style={{ background: 'var(--amber-light)', color: 'var(--amber)' }}>
+            <Box size={22} />
+          </span>
+          <div>
+            <b>{pendingOrders.length} Pesanan</b>
+            <small>Perlu Diproses ({orders.length} Total)</small>
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <span className="stat-icon" style={{ background: 'var(--blue-light)', color: 'var(--blue)' }}>
+            <Users size={22} />
+          </span>
+          <div>
+            <b>{allUsers.length} Pengguna</b>
+            <small>Keluarga Terdaftar</small>
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <span className="stat-icon" style={{ background: 'var(--rose-light)', color: 'var(--rose)' }}>
+            <Truck size={22} />
+          </span>
+          <div>
+            <b>{totalUnitsOrdered} Unit</b>
+            <small>Total Fisik Dipesan</small>
+          </div>
+        </div>
+      </div>
+
+      {/* Quick Action Navigation Panels */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: 14, marginBottom: 28 }}>
+        <Link to="/admin/pesanan" className="panel" style={{ display: 'flex', alignItems: 'center', gap: 14, textDecoration: 'none', padding: 18 }}>
+          <span className="avatar" style={{ background: 'var(--amber-light)', color: 'var(--amber)' }}>
+            <Box size={20} />
+          </span>
+          <div style={{ flex: 1 }}>
+            <b style={{ display: 'block', fontSize: '0.96rem', color: 'var(--text-main)' }}>Manajemen Pesanan</b>
+            <small style={{ color: 'var(--text-muted)' }}>Proses kirim & update resi kurir</small>
+          </div>
+          <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
+        </Link>
+
+        <Link to="/admin/celengan" className="panel" style={{ display: 'flex', alignItems: 'center', gap: 14, textDecoration: 'none', padding: 18 }}>
+          <span className="avatar" style={{ background: 'var(--primary-light)', color: 'var(--primary)' }}>
+            <Wallet size={20} />
+          </span>
+          <div style={{ flex: 1 }}>
+            <b style={{ display: 'block', fontSize: '0.96rem', color: 'var(--text-main)' }}>Inventaris Celengan</b>
+            <small style={{ color: 'var(--text-muted)' }}>Register serial & flash chip NFC</small>
+          </div>
+          <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
+        </Link>
+
+        <Link to="/admin/users" className="panel" style={{ display: 'flex', alignItems: 'center', gap: 14, textDecoration: 'none', padding: 18 }}>
+          <span className="avatar" style={{ background: 'var(--blue-light)', color: 'var(--blue)' }}>
+            <Users size={20} />
+          </span>
+          <div style={{ flex: 1 }}>
+            <b style={{ display: 'block', fontSize: '0.96rem', color: 'var(--text-main)' }}>Kelola Pengguna</b>
+            <small style={{ color: 'var(--text-muted)' }}>Atur peran & data anggota</small>
+          </div>
+          <ChevronRight size={18} style={{ color: 'var(--text-muted)' }} />
+        </Link>
+      </div>
+
+      {/* Dual Column: Recent Orders & Recent Banks */}
       <div className="dashboard-columns">
         <section className="panel">
           <div className="panel-heading">
             <div>
-              <h3>Registrasi Celengan Fisik</h3>
-              <p>Daftarkan nomor seri unik celengan untuk chip NFC NTAG213</p>
+              <h3>Pesanan Terbaru Masuk</h3>
+              <p>Perlu segera diverifikasi dan dikirim ke pembeli</p>
             </div>
+            <Link to="/admin/pesanan" className="button button-ghost button-small">
+              Semua Pesanan ({orders.length}) →
+            </Link>
           </div>
 
-          <form className="stack-form" onSubmit={submitBank}>
-            <Field
-              label="Nomor Seri Unik"
-              placeholder="Contoh: CBF-1001"
-              value={serial}
-              onChange={(e) => setSerial(e.target.value.toUpperCase())}
-              required
-              minLength={3}
-              maxLength={40}
-            />
-
-            <Field
-              label="Nama Identitas Celengan"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-
-            <div className="field">
-              <span>Model Produk</span>
-              <select value={category} onChange={(e) => setCategory(e.target.value)}>
-                <option value="smart-classic">Chillbank Smart Classic (Tabung)</option>
-                <option value="smart-box">Chillbank Wooden Family Edition (Kayu)</option>
-                <option value="junior-edition">Chillbank Junior Kids Edition (Karakter)</option>
-              </select>
+          {orders.length ? (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {orders.slice(0, 4).map((o) => (
+                <div
+                  key={o.id}
+                  style={{
+                    background: 'var(--bg-page)',
+                    padding: '12px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-light)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                  }}
+                >
+                  <div style={{ minWidth: 0, flex: 1 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 2 }}>
+                      <b style={{ fontSize: '0.9rem' }}>{o.recipient_name}</b>
+                      <span className="badge badge-amber" style={{ fontSize: '0.72rem' }}>
+                        {o.quantity} unit
+                      </span>
+                    </div>
+                    <small style={{ color: 'var(--text-muted)', display: 'block', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                      {o.product_model} • {o.phone}
+                    </small>
+                  </div>
+                  <span
+                    className={`badge ${
+                      o.status === 'pending'
+                        ? 'badge-amber'
+                        : o.status === 'shipped' || o.status === 'delivered' || o.status === 'received'
+                        ? 'badge-emerald'
+                        : o.status === 'cancelled'
+                        ? 'badge-rose'
+                        : 'badge-blue'
+                    }`}
+                  >
+                    {o.status}
+                  </span>
+                </div>
+              ))}
             </div>
-
-            <Field
-              label="UUID Akun Pemilik (Opsional)"
-              placeholder="UUID profiles untuk langsung menghubungkan"
-              value={owner}
-              onChange={(e) => setOwner(e.target.value)}
-            />
-
-            {err && <div className="form-error">{err}</div>}
-            {msg && <div className="form-success">{msg}</div>}
-
-            <Button type="submit" disabled={busy} className="button-full">
-              {busy ? 'Mendaftarkan...' : 'Daftarkan Celengan Baru'}
-            </Button>
-          </form>
+          ) : (
+            <EmptyState icon={<Box size={36} />} title="Belum Ada Pesanan" text="Pesanan celengan baru akan tampil di sini." />
+          )}
         </section>
 
         <section className="panel">
           <div className="panel-heading">
             <div>
-              <h3>Celengan Terdaftar</h3>
-              <p>{banks.length} celengan dalam sistem</p>
+              <h3>Celengan Terdaftar Terbaru</h3>
+              <p>Nomor seri fisik terdaftar dalam sistem</p>
             </div>
+            <Link to="/admin/celengan" className="button button-ghost button-small">
+              Inventaris ({banks.length}) →
+            </Link>
           </div>
 
-          <div className="bank-list">
-            {banks.slice(0, 6).map((b) => (
-              <div className="bank-row" key={b.id}>
-                <div className="bank-icon-box">
-                  <SmartphoneNfc size={20} />
+          {banks.length ? (
+            <div className="bank-list">
+              {banks.slice(0, 4).map((b) => (
+                <div className="bank-row" key={b.id}>
+                  <div className="bank-icon-box">
+                    <SmartphoneNfc size={20} />
+                  </div>
+                  <div className="bank-row-main">
+                    <b>{b.name}</b>
+                    <small>{b.serial} • {b.category}</small>
+                  </div>
+                  <span className="badge badge-emerald">{b.status}</span>
                 </div>
-                <div className="bank-row-main">
-                  <b>{b.name}</b>
-                  <small>{b.serial} • Pemilik: {b.owner_id ? b.owner_id.slice(0, 8) : 'Belum Ditautkan'}</small>
-                </div>
-                <span className="badge badge-emerald">{b.status}</span>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <EmptyState icon={<Wallet size={36} />} title="Belum Ada Celengan" text="Daftarkan nomor seri celengan fisik pertama Anda." />
+          )}
         </section>
       </div>
+    </>
+  )
+}
 
-      <section className="panel" style={{ marginTop: 24 }}>
-        <div className="panel-heading">
-          <div>
-            <h3>Manajemen Pesanan Celengan</h3>
-            <p>Konfirmasi pesanan dan input nomor resi ekspedisi</p>
-          </div>
+// ------------------------------------------------------------------------------
+// 2. Manajemen Pesanan Admin (/admin/pesanan)
+// ------------------------------------------------------------------------------
+function AdminOrdersPage({
+  orders,
+  refresh,
+}: {
+  orders: PiggyBankOrder[]
+  refresh: () => Promise<void>
+}) {
+  const [filter, setFilter] = useState<'all' | 'pending' | 'processing' | 'shipped' | 'done' | 'cancelled'>('all')
+
+  async function updateOrderStatus(orderId: string, status: PiggyBankOrder['status'], tracking?: string) {
+    if (!supabase) return
+    const { error } = await supabase
+      .from('piggy_bank_orders')
+      .update({ status, tracking_number: tracking || null, updated_at: new Date().toISOString() })
+      .eq('id', orderId)
+    if (error) alert(error.message)
+    else await refresh()
+  }
+
+  const filtered = orders.filter((o) => {
+    if (filter === 'pending') return o.status === 'pending'
+    if (filter === 'processing') return o.status === 'confirmed' || o.status === 'processing'
+    if (filter === 'shipped') return o.status === 'shipped'
+    if (filter === 'done') return o.status === 'delivered' || o.status === 'received'
+    if (filter === 'cancelled') return o.status === 'cancelled'
+    return true
+  })
+
+  return (
+    <>
+      <div className="page-heading">
+        <div>
+          <div className="eyebrow">LOGISTIK & DISTRIBUSI</div>
+          <h1>Manajemen Pesanan Celengan</h1>
+          <p>Konfirmasi pesanan anggota, siapkan celengan fisik, dan input nomor resi kurir pengiriman.</p>
         </div>
+      </div>
 
-        {orders.length ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
-            {orders.map((o) => (
-              <AdminOrderItem key={o.id} order={o} onUpdate={updateOrderStatus} />
-            ))}
-          </div>
-        ) : (
-          <EmptyState
-            icon={<Box size={40} />}
-            title="Belum Ada Pesanan"
-            text="Pesanan masuk dari anggota akan tampil di sini."
-          />
-        )}
-      </section>
+      {/* Filter Tabs */}
+      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 20 }}>
+        <button
+          className={`button button-small ${filter === 'all' ? 'button-primary' : 'button-secondary'}`}
+          onClick={() => setFilter('all')}
+        >
+          Semua ({orders.length})
+        </button>
+        <button
+          className={`button button-small ${filter === 'pending' ? 'button-primary' : 'button-secondary'}`}
+          onClick={() => setFilter('pending')}
+        >
+          Menunggu ({orders.filter((o) => o.status === 'pending').length})
+        </button>
+        <button
+          className={`button button-small ${filter === 'processing' ? 'button-primary' : 'button-secondary'}`}
+          onClick={() => setFilter('processing')}
+        >
+          Disiapkan ({orders.filter((o) => o.status === 'confirmed' || o.status === 'processing').length})
+        </button>
+        <button
+          className={`button button-small ${filter === 'shipped' ? 'button-primary' : 'button-secondary'}`}
+          onClick={() => setFilter('shipped')}
+        >
+          Dikirim ({orders.filter((o) => o.status === 'shipped').length})
+        </button>
+        <button
+          className={`button button-small ${filter === 'done' ? 'button-primary' : 'button-secondary'}`}
+          onClick={() => setFilter('done')}
+        >
+          Selesai ({orders.filter((o) => o.status === 'delivered' || o.status === 'received').length})
+        </button>
+        <button
+          className={`button button-small ${filter === 'cancelled' ? 'button-primary' : 'button-secondary'}`}
+          onClick={() => setFilter('cancelled')}
+        >
+          Batal ({orders.filter((o) => o.status === 'cancelled').length})
+        </button>
+      </div>
+
+      {filtered.length ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 14 }}>
+          {filtered.map((o) => (
+            <AdminOrderItem key={o.id} order={o} onUpdate={updateOrderStatus} />
+          ))}
+        </div>
+      ) : (
+        <EmptyState
+          icon={<Box size={44} />}
+          title="Tidak Ada Pesanan pada Kategori Ini"
+          text="Semua pesanan dengan status yang dipilih akan muncul di sini."
+        />
+      )}
     </>
   )
 }
@@ -2365,27 +2539,61 @@ function AdminOrderItem({
   const [status, setStatus] = useState(order.status)
   const [tracking, setTracking] = useState(order.tracking_number || '')
   const [busy, setBusy] = useState(false)
+  const [savedMsg, setSavedMsg] = useState(false)
+
+  const cleanPhone = order.phone.replace(/[^0-9]/g, '')
+  const waNumber = cleanPhone.startsWith('0') ? '62' + cleanPhone.slice(1) : cleanPhone
 
   return (
     <div
       style={{
         background: 'var(--bg-page)',
-        padding: 16,
+        padding: 18,
         borderRadius: 'var(--radius-md)',
         border: '1px solid var(--border-light)',
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 6 }}>
-        <b>#{order.id.slice(0, 8).toUpperCase()} • {order.recipient_name}</b>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 6 }}>
+        <div>
+          <b>#{order.id.slice(0, 8).toUpperCase()} • {order.recipient_name}</b>
+          <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginLeft: 8 }}>
+            {dateText(order.created_at)}
+          </span>
+        </div>
         <span className="badge badge-amber">{order.quantity} unit</span>
       </div>
 
-      <small style={{ color: 'var(--text-muted)', display: 'block', marginBottom: 4 }}>
-        {order.phone} • {order.address}
-      </small>
-      <p style={{ fontSize: '0.88rem', fontWeight: 600 }}>{order.product_model}</p>
+      <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginBottom: 6, flexWrap: 'wrap' }}>
+        <small style={{ color: 'var(--text-muted)' }}>
+          📞 {order.phone}
+        </small>
+        {waNumber.length >= 10 && (
+          <a
+            href={`https://wa.me/${waNumber}`}
+            target="_blank"
+            rel="noreferrer"
+            style={{ fontSize: '0.78rem', color: '#059669', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: 4 }}
+          >
+            Chat WhatsApp ↗
+          </a>
+        )}
+      </div>
 
-      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 12, alignItems: 'flex-end' }}>
+      <small style={{ color: 'var(--text-muted)', display: 'block', marginBottom: 6 }}>
+        📍 Alamat: {order.address}
+      </small>
+
+      <p style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--forest)' }}>
+        📦 {order.product_model}
+      </p>
+
+      {order.note && (
+        <small style={{ display: 'block', marginTop: 4, background: '#ffffff', padding: '6px 10px', borderRadius: 6, border: '1px dashed var(--border-light)' }}>
+          Catatan: {order.note}
+        </small>
+      )}
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, marginTop: 14, alignItems: 'flex-end' }}>
         <label className="field" style={{ flex: 1, minWidth: 160 }}>
           <span>Status Pesanan</span>
           <select value={status} onChange={(e) => setStatus(e.target.value as PiggyBankOrder['status'])}>
@@ -2414,15 +2622,384 @@ function AdminOrderItem({
             setBusy(true)
             await onUpdate(order.id, status, tracking)
             setBusy(false)
+            setSavedMsg(true)
+            setTimeout(() => setSavedMsg(false), 2500)
           }}
         >
-          {busy ? 'Menyimpan...' : 'Perbarui Status'}
+          {busy ? 'Menyimpan...' : savedMsg ? 'Tersimpan ✓' : 'Perbarui Status'}
         </Button>
       </div>
     </div>
   )
 }
 
+// ------------------------------------------------------------------------------
+// 3. Inventaris Celengan & NFC Chip (/admin/celengan)
+// ------------------------------------------------------------------------------
+function AdminInventoryPage({
+  banks,
+  refresh,
+}: {
+  banks: PiggyBank[]
+  refresh: () => Promise<void>
+}) {
+  const [serial, setSerial] = useState('')
+  const [name, setName] = useState('Celengan Chillbank')
+  const [category, setCategory] = useState('smart-classic')
+  const [owner, setOwner] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [msg, setMsg] = useState('')
+  const [err, setErr] = useState('')
+  const [search, setSearch] = useState('')
+
+  async function submitBank(e: FormEvent) {
+    e.preventDefault()
+    if (!supabase) return
+    setBusy(true)
+    setMsg('')
+    setErr('')
+    try {
+      const { data, error: rpcErr } = await supabase.rpc('admin_create_bank', {
+        p_serial: serial.trim().toUpperCase(),
+        p_name: name.trim(),
+        p_owner_id: owner.trim() || null,
+        p_category: category,
+        p_color: 'emerald',
+        p_nfc_uid: null,
+      })
+      if (rpcErr) throw rpcErr
+      setMsg(`Celengan baru berhasil didaftarkan! (ID: ${data})`)
+      setSerial('')
+      await refresh()
+    } catch (e: any) {
+      setErr(errorText(e))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const filteredBanks = banks.filter(
+    (b) =>
+      b.serial.toLowerCase().includes(search.toLowerCase()) ||
+      b.name.toLowerCase().includes(search.toLowerCase())
+  )
+
+  return (
+    <>
+      <div className="page-heading">
+        <div>
+          <div className="eyebrow">HARDWARE & INVENTARIS FISIK</div>
+          <h1>Inventaris Celengan & Chip NFC</h1>
+          <p>Registrasi produk celengan baru, pemetaan serial number, dan penautan chip NFC NTAG213.</p>
+        </div>
+      </div>
+
+      <div className="dashboard-columns">
+        {/* Form Pendaftaran */}
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <h3>Registrasi Celengan Fisik Baru</h3>
+              <p>Generate serial number unik celengan fisik</p>
+            </div>
+          </div>
+
+          <form className="stack-form" onSubmit={submitBank}>
+            <Field
+              label="Nomor Seri Unik (Serial Number)"
+              placeholder="Contoh: CBF-1001"
+              value={serial}
+              onChange={(e) => setSerial(e.target.value.toUpperCase())}
+              required
+              minLength={3}
+              maxLength={40}
+            />
+
+            <Field
+              label="Nama Identitas Celengan"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+            />
+
+            <div className="field">
+              <span>Model / Varian Celengan</span>
+              <select value={category} onChange={(e) => setCategory(e.target.value)}>
+                <option value="smart-classic">Chillbank Smart Classic (Tabung)</option>
+                <option value="smart-box">Chillbank Wooden Family Edition (Kayu)</option>
+                <option value="junior-edition">Chillbank Junior Kids Edition (Karakter)</option>
+              </select>
+            </div>
+
+            <Field
+              label="UUID Akun Pemilik (Opsional)"
+              placeholder="Kosongkan jika celengan siap jual / belum ditautkan"
+              value={owner}
+              onChange={(e) => setOwner(e.target.value)}
+            />
+
+            {err && <div className="form-error">{err}</div>}
+            {msg && <div className="form-success">{msg}</div>}
+
+            <Button type="submit" disabled={busy} className="button-full">
+              {busy ? 'Mendaftarkan...' : 'Daftarkan Celengan Baru'}
+            </Button>
+          </form>
+        </section>
+
+        {/* Daftar Celengan */}
+        <section className="panel">
+          <div className="panel-heading">
+            <div>
+              <h3>Daftar Celengan ({banks.length})</h3>
+              <p>Perangkat terdaftar di sistem cloud</p>
+            </div>
+          </div>
+
+          <div style={{ marginBottom: 14 }}>
+            <input
+              placeholder="Cari nomor seri atau nama celengan..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{
+                width: '100%',
+                padding: '10px 14px',
+                borderRadius: 'var(--radius-md)',
+                border: '1px solid var(--border-light)',
+                background: 'var(--bg-page)',
+              }}
+            />
+          </div>
+
+          <div className="bank-list" style={{ maxHeight: 520, overflowY: 'auto' }}>
+            {filteredBanks.map((b) => (
+              <div className="bank-row" key={b.id}>
+                <div className="bank-icon-box">
+                  <SmartphoneNfc size={20} />
+                </div>
+                <div className="bank-row-main">
+                  <b>{b.name}</b>
+                  <small>
+                    <code>{b.serial}</code> • {b.category} • Pemilik: {b.owner_id ? b.owner_id.slice(0, 8) : 'Belum Ditautkan'}
+                  </small>
+                </div>
+                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                  <span className="badge badge-emerald">{b.status}</span>
+                  <Link
+                    to={`/c/${encodeURIComponent(b.serial)}`}
+                    target="_blank"
+                    className="button button-ghost button-small"
+                    title="Buka Halaman Celengan"
+                  >
+                    <ArrowUpRight size={14} />
+                  </Link>
+                </div>
+              </div>
+            ))}
+            {!filteredBanks.length && (
+              <EmptyState icon={<Wallet size={36} />} title="Celengan Tidak Ditemukan" text="Coba gunakan kata kunci nomor seri lain." />
+            )}
+          </div>
+        </section>
+      </div>
+    </>
+  )
+}
+
+// ------------------------------------------------------------------------------
+// 4. Manajemen Pengguna Platform (/admin/users)
+// ------------------------------------------------------------------------------
+function AdminUsersPage({
+  users,
+  currentUserId,
+  refresh,
+}: {
+  users: Profile[]
+  currentUserId: string
+  refresh: () => Promise<void>
+}) {
+  const [search, setSearch] = useState('')
+  const [updatingId, setUpdatingId] = useState<string | null>(null)
+  const [msg, setMsg] = useState('')
+
+  const roleLabels: Record<FamilyRole, string> = {
+    admin: 'Administrator',
+    parent: 'Kepala Keluarga / Orang Tua',
+    child: 'Anggota / Anak',
+    member: 'Anggota Keluarga',
+  }
+
+  async function handleRoleChange(userId: string, newRole: FamilyRole) {
+    if (!supabase) return
+    setUpdatingId(userId)
+    setMsg('')
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ role: newRole })
+        .eq('id', userId)
+      if (error) throw error
+      setMsg(`Berhasil mengubah peran pengguna menjadi ${roleLabels[newRole]}.`)
+      await refresh()
+    } catch (err: any) {
+      alert(`Gagal mengubah peran: ${err.message}`)
+    } finally {
+      setUpdatingId(null)
+    }
+  }
+
+  const filteredUsers = users.filter(
+    (u) =>
+      u.full_name.toLowerCase().includes(search.toLowerCase()) ||
+      u.id.toLowerCase().includes(search.toLowerCase()) ||
+      (u.phone && u.phone.includes(search))
+  )
+
+  const adminCount = users.filter((u) => u.role === 'admin').length
+  const parentCount = users.filter((u) => u.role === 'parent').length
+  const childCount = users.filter((u) => u.role === 'child' || u.role === 'member').length
+
+  return (
+    <>
+      <div className="page-heading">
+        <div>
+          <div className="eyebrow">MANAJEMEN HAK AKSES</div>
+          <h1>Manajemen Pengguna & Anggota</h1>
+          <p>Daftar seluruh akun keluarga terdaftar dan pengaturan peran administrator.</p>
+        </div>
+      </div>
+
+      {/* KPI Pengguna */}
+      <div className="stat-grid" style={{ marginBottom: 20 }}>
+        <div className="stat-card">
+          <span className="stat-icon" style={{ background: 'var(--blue-light)', color: 'var(--blue)' }}>
+            <Users size={20} />
+          </span>
+          <div>
+            <b>{users.length} Akun</b>
+            <small>Total Terdaftar di Sistem</small>
+          </div>
+        </div>
+        <div className="stat-card">
+          <span className="stat-icon" style={{ background: 'var(--primary-light)', color: 'var(--primary)' }}>
+            <ShieldCheck size={20} />
+          </span>
+          <div>
+            <b>{adminCount} Admin</b>
+            <small>Pengelola Platform</small>
+          </div>
+        </div>
+        <div className="stat-card">
+          <span className="stat-icon" style={{ background: 'var(--amber-light)', color: 'var(--amber)' }}>
+            <UserRound size={20} />
+          </span>
+          <div>
+            <b>{parentCount} Orang Tua</b>
+            <small>Kepala Keluarga</small>
+          </div>
+        </div>
+        <div className="stat-card">
+          <span className="stat-icon" style={{ background: 'var(--rose-light)', color: 'var(--rose)' }}>
+            <Sparkles size={20} />
+          </span>
+          <div>
+            <b>{childCount} Anak / Anggota</b>
+            <small>Penabung Cilik</small>
+          </div>
+        </div>
+      </div>
+
+      {msg && <div className="form-success" style={{ marginBottom: 16 }}>{msg}</div>}
+
+      <section className="panel">
+        <div className="panel-heading">
+          <div>
+            <h3>Daftar Pengguna ({users.length})</h3>
+            <p>Atur hak akses akun langsung dari tabel</p>
+          </div>
+          <input
+            placeholder="Cari nama, ID, atau no. telepon..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            style={{
+              padding: '8px 12px',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border-light)',
+              minWidth: 240,
+            }}
+          />
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+          {filteredUsers.map((u) => (
+            <div
+              key={u.id}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '14px 16px',
+                borderRadius: 'var(--radius-md)',
+                background: 'var(--bg-page)',
+                border: '1px solid var(--border-light)',
+                flexWrap: 'wrap',
+                gap: 12,
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                <span className="avatar" style={{ width: 44, height: 44, fontSize: '1.1rem' }}>
+                  {(u.full_name || 'U').slice(0, 1).toUpperCase()}
+                </span>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <b>{u.full_name || 'Pengguna Tanpa Nama'}</b>
+                    {u.id === currentUserId && (
+                      <span className="badge badge-emerald" style={{ fontSize: '0.7rem' }}>
+                        Anda
+                      </span>
+                    )}
+                  </div>
+                  <small style={{ color: 'var(--text-muted)', display: 'block' }}>
+                    ID: <code>{u.id.slice(0, 8)}...</code> {u.phone ? `• ${u.phone}` : ''}
+                  </small>
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                <select
+                  value={u.role || 'parent'}
+                  disabled={updatingId === u.id}
+                  onChange={(e) => handleRoleChange(u.id, e.target.value as FamilyRole)}
+                  style={{
+                    padding: '8px 12px',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-light)',
+                    background: '#ffffff',
+                    fontWeight: 600,
+                    fontSize: '0.86rem',
+                  }}
+                >
+                  <option value="admin">Administrator</option>
+                  <option value="parent">Kepala Keluarga / Orang Tua</option>
+                  <option value="child">Anggota / Anak</option>
+                  <option value="member">Anggota Keluarga</option>
+                </select>
+                {updatingId === u.id && <small style={{ color: 'var(--primary)' }}>Menyimpan...</small>}
+              </div>
+            </div>
+          ))}
+          {!filteredUsers.length && (
+            <EmptyState icon={<Users size={36} />} title="Pengguna Tidak Ditemukan" text="Coba cari dengan kata kunci lain." />
+          )}
+        </div>
+      </section>
+    </>
+  )
+}
+
+// ------------------------------------------------------------------------------
+// Root App Component & Authentication Handler
+// ------------------------------------------------------------------------------
 // ------------------------------------------------------------------------------
 // Root App Component & Authentication Handler
 // ------------------------------------------------------------------------------
@@ -2435,6 +3012,7 @@ export default function App() {
   const [entries, setEntries] = useState<SavingsEntry[]>([])
   const [goals, setGoals] = useState<SavingsGoal[]>([])
   const [orders, setOrders] = useState<PiggyBankOrder[]>([])
+  const [allUsers, setAllUsers] = useState<Profile[]>([])
   const [globalError, setGlobalError] = useState('')
   const [showScanner, setShowScanner] = useState(false)
 
@@ -2442,7 +3020,7 @@ export default function App() {
   const navigate = useNavigate()
   const loadSeq = useRef(0)
 
-  async function loadData(uid?: string) {
+  async function loadData(uid?: string): Promise<Profile | null> {
     const seq = ++loadSeq.current
     if (!supabase || !uid) {
       setProfile(null)
@@ -2450,47 +3028,55 @@ export default function App() {
       setEntries([])
       setGoals([])
       setOrders([])
+      setAllUsers([])
       setGlobalError('')
       setDataLoading(false)
-      return
+      return null
     }
 
     setDataLoading(true)
+    setGlobalError('')
     try {
       const readProfile = () =>
         supabase!.from('profiles').select('id,full_name,role,phone,bio,avatar_color').eq('id', uid).maybeSingle()
 
-      let { data: p, error: pe } = await readProfile()
-      if (!p && !pe) {
+      let { data: p } = await readProfile()
+      if (!p) {
         const { error: re } = await supabase.rpc('ensure_my_profile')
-        if (re) pe = re
-        else {
-          const r = await readProfile()
-          p = r.data
-          pe = r.error
-        }
+        if (re) console.warn('ensure_my_profile:', re.message)
+        const r = await readProfile()
+        p = r.data
       }
 
-      const [{ data: b, error: be }, { data: e, error: ee }, { data: g, error: ge }, { data: o, error: oe }] =
-        await Promise.all([
-          supabase.from('piggy_banks').select('*').order('created_at', { ascending: false }),
-          supabase.from('savings_entries').select('*').eq('user_id', uid).order('created_at', { ascending: false }).limit(300),
-          supabase.from('savings_goals').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
-          supabase.from('piggy_bank_orders').select('*').order('created_at', { ascending: false }),
-        ])
+      const isAdmin = p?.role === 'admin'
 
-      if (seq !== loadSeq.current) return
-      const err = pe || be || ee || ge || oe
-      setGlobalError(err ? err.message : '')
+      const [{ data: b }, { data: e }, { data: g }, { data: o }, { data: u }] = await Promise.all([
+        supabase.from('piggy_banks').select('*').order('created_at', { ascending: false }),
+        isAdmin
+          ? Promise.resolve({ data: [] })
+          : supabase.from('savings_entries').select('*').eq('user_id', uid).order('created_at', { ascending: false }).limit(300),
+        isAdmin
+          ? Promise.resolve({ data: [] })
+          : supabase.from('savings_goals').select('*').eq('user_id', uid).order('created_at', { ascending: false }),
+        supabase.from('piggy_bank_orders').select('*').order('created_at', { ascending: false }),
+        isAdmin
+          ? supabase.from('profiles').select('*').order('created_at', { ascending: false })
+          : Promise.resolve({ data: [] }),
+      ])
+
+      if (seq !== loadSeq.current) return (p as Profile) || null
       setProfile(p as Profile | null)
       setBanks((b || []) as PiggyBank[])
       setEntries((e || []) as SavingsEntry[])
       setGoals((g || []) as SavingsGoal[])
       setOrders((o || []) as PiggyBankOrder[])
+      setAllUsers((u || []) as Profile[])
+      return (p as Profile) || null
     } catch (e: any) {
       if (seq === loadSeq.current) {
         setGlobalError(e?.message || 'Gagal memuat profil')
       }
+      return null
     } finally {
       if (seq === loadSeq.current) {
         setDataLoading(false)
@@ -2516,10 +3102,14 @@ export default function App() {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
       const uid = session?.user.id || null
+      if (!session) {
+        setUserId(null)
+        setProfile(null)
+        setDataLoading(false)
+        return
+      }
       setUserId(uid)
-      setTimeout(() => {
-        void loadData(uid || undefined)
-      }, 0)
+      void loadData(uid || undefined)
     })
 
     return () => {
@@ -2559,8 +3149,8 @@ export default function App() {
       if (error) throw error
       if (data.session && data.user) {
         setUserId(data.user.id)
-        await loadData(data.user.id)
-        navigate('/app', { replace: true })
+        const loaded = await loadData(data.user.id)
+        navigate(loaded?.role === 'admin' ? '/admin' : '/app', { replace: true })
         return
       }
       navigate('/login', {
@@ -2574,10 +3164,14 @@ export default function App() {
       })
       if (error) throw error
       setUserId(data.user.id)
-      await loadData(data.user.id)
+      const loaded = await loadData(data.user.id)
       const params = new URLSearchParams(location.search)
       const next = params.get('next')
-      navigate(next && next.startsWith('/') ? next : '/app', { replace: true })
+      if (next && next.startsWith('/') && !next.startsWith('/login')) {
+        navigate(next, { replace: true })
+      } else {
+        navigate(loaded?.role === 'admin' ? '/admin' : '/app', { replace: true })
+      }
     }
   }
 
@@ -2611,7 +3205,7 @@ export default function App() {
           path="/login"
           element={
             userId && profile ? (
-              <Navigate replace to="/app" />
+              <Navigate replace to={profile.role === 'admin' ? '/admin' : '/app'} />
             ) : (
               <AuthPage mode="login" onAuth={(e, p) => handleAuth('login', e, p)} />
             )
@@ -2621,7 +3215,7 @@ export default function App() {
           path="/register"
           element={
             userId && profile ? (
-              <Navigate replace to="/app" />
+              <Navigate replace to={profile.role === 'admin' ? '/admin' : '/app'} />
             ) : (
               <AuthPage mode="register" onAuth={(e, p, n, r) => handleAuth('register', e, p, n, r)} />
             )
@@ -2638,17 +3232,21 @@ export default function App() {
         <Route
           path="/app"
           element={
-            <Protected profile={profile} userId={userId} loading={dataLoading} error={globalError}>
-              <AppShell profile={profile!} onLogout={handleLogout} onOpenScan={() => setShowScanner(true)}>
-                <Dashboard
-                  profile={profile!}
-                  banks={banks}
-                  entries={entries}
-                  goals={goals}
-                  refresh={refresh}
-                  onOpenScan={() => setShowScanner(true)}
-                />
-              </AppShell>
+            <Protected profile={profile} userId={userId} loading={dataLoading}>
+              {profile?.role === 'admin' ? (
+                <Navigate replace to="/admin" />
+              ) : (
+                <AppShell profile={profile!} onLogout={handleLogout} onOpenScan={() => setShowScanner(true)}>
+                  <Dashboard
+                    profile={profile!}
+                    banks={banks}
+                    entries={entries}
+                    goals={goals}
+                    refresh={refresh}
+                    onOpenScan={() => setShowScanner(true)}
+                  />
+                </AppShell>
+              )}
             </Protected>
           }
         />
@@ -2656,7 +3254,7 @@ export default function App() {
         <Route
           path="/app/celengan"
           element={
-            <Protected profile={profile} userId={userId} loading={dataLoading} error={globalError}>
+            <Protected profile={profile} userId={userId} loading={dataLoading}>
               <AppShell profile={profile!} onLogout={handleLogout} onOpenScan={() => setShowScanner(true)}>
                 <BanksPage banks={banks} entries={entries} refresh={refresh} profile={profile!} />
               </AppShell>
@@ -2667,7 +3265,7 @@ export default function App() {
         <Route
           path="/app/celengan/:id"
           element={
-            <Protected profile={profile} userId={userId} loading={dataLoading} error={globalError}>
+            <Protected profile={profile} userId={userId} loading={dataLoading}>
               <AppShell profile={profile!} onLogout={handleLogout} onOpenScan={() => setShowScanner(true)}>
                 <BankDetailPage banks={banks} entries={entries} />
               </AppShell>
@@ -2678,10 +3276,14 @@ export default function App() {
         <Route
           path="/app/target"
           element={
-            <Protected profile={profile} userId={userId} loading={dataLoading} error={globalError}>
-              <AppShell profile={profile!} onLogout={handleLogout} onOpenScan={() => setShowScanner(true)}>
-                <GoalsPage goals={goals} banks={banks} entries={entries} refresh={refresh} />
-              </AppShell>
+            <Protected profile={profile} userId={userId} loading={dataLoading}>
+              {profile?.role === 'admin' ? (
+                <Navigate replace to="/admin" />
+              ) : (
+                <AppShell profile={profile!} onLogout={handleLogout} onOpenScan={() => setShowScanner(true)}>
+                  <GoalsPage goals={goals} banks={banks} entries={entries} refresh={refresh} />
+                </AppShell>
+              )}
             </Protected>
           }
         />
@@ -2689,10 +3291,14 @@ export default function App() {
         <Route
           path="/app/riwayat"
           element={
-            <Protected profile={profile} userId={userId} loading={dataLoading} error={globalError}>
-              <AppShell profile={profile!} onLogout={handleLogout} onOpenScan={() => setShowScanner(true)}>
-                <HistoryPage entries={entries} banks={banks} />
-              </AppShell>
+            <Protected profile={profile} userId={userId} loading={dataLoading}>
+              {profile?.role === 'admin' ? (
+                <Navigate replace to="/admin" />
+              ) : (
+                <AppShell profile={profile!} onLogout={handleLogout} onOpenScan={() => setShowScanner(true)}>
+                  <HistoryPage entries={entries} banks={banks} />
+                </AppShell>
+              )}
             </Protected>
           }
         />
@@ -2700,13 +3306,17 @@ export default function App() {
         <Route
           path="/app/pesanan"
           element={
-            <Protected profile={profile} userId={userId} loading={dataLoading} error={globalError}>
-              <AppShell profile={profile!} onLogout={handleLogout} onOpenScan={() => setShowScanner(true)}>
-                <OrdersPage
-                  orders={orders.filter((o) => o.user_id === userId || profile?.role === 'admin')}
-                  refresh={refresh}
-                />
-              </AppShell>
+            <Protected profile={profile} userId={userId} loading={dataLoading}>
+              {profile?.role === 'admin' ? (
+                <Navigate replace to="/admin/pesanan" />
+              ) : (
+                <AppShell profile={profile!} onLogout={handleLogout} onOpenScan={() => setShowScanner(true)}>
+                  <OrdersPage
+                    orders={orders.filter((o) => o.user_id === userId)}
+                    refresh={refresh}
+                  />
+                </AppShell>
+              )}
             </Protected>
           }
         />
@@ -2714,7 +3324,7 @@ export default function App() {
         <Route
           path="/app/profil"
           element={
-            <Protected profile={profile} userId={userId} loading={dataLoading} error={globalError}>
+            <Protected profile={profile} userId={userId} loading={dataLoading}>
               <AppShell profile={profile!} onLogout={handleLogout} onOpenScan={() => setShowScanner(true)}>
                 <ProfilePage profile={profile!} refresh={refresh} />
               </AppShell>
@@ -2722,13 +3332,72 @@ export default function App() {
           }
         />
 
+        {/* Dedicated Admin Routes */}
         <Route
           path="/admin"
           element={
-            <Protected profile={profile} userId={userId} loading={dataLoading} error={globalError}>
-              <AppShell profile={profile!} onLogout={handleLogout} onOpenScan={() => setShowScanner(true)}>
-                <AdminPage profile={profile!} banks={banks} orders={orders} refresh={refresh} />
-              </AppShell>
+            <Protected profile={profile} userId={userId} loading={dataLoading}>
+              {profile?.role !== 'admin' ? (
+                <Navigate replace to="/app" />
+              ) : (
+                <AppShell profile={profile!} onLogout={handleLogout} onOpenScan={() => setShowScanner(true)}>
+                  <AdminDashboardPage
+                    banks={banks}
+                    orders={orders}
+                    allUsers={allUsers}
+                    onOpenScan={() => setShowScanner(true)}
+                  />
+                </AppShell>
+              )}
+            </Protected>
+          }
+        />
+
+        <Route
+          path="/admin/pesanan"
+          element={
+            <Protected profile={profile} userId={userId} loading={dataLoading}>
+              {profile?.role !== 'admin' ? (
+                <Navigate replace to="/app" />
+              ) : (
+                <AppShell profile={profile!} onLogout={handleLogout} onOpenScan={() => setShowScanner(true)}>
+                  <AdminOrdersPage orders={orders} refresh={refresh} />
+                </AppShell>
+              )}
+            </Protected>
+          }
+        />
+
+        <Route
+          path="/admin/celengan"
+          element={
+            <Protected profile={profile} userId={userId} loading={dataLoading}>
+              {profile?.role !== 'admin' ? (
+                <Navigate replace to="/app" />
+              ) : (
+                <AppShell profile={profile!} onLogout={handleLogout} onOpenScan={() => setShowScanner(true)}>
+                  <AdminInventoryPage banks={banks} refresh={refresh} />
+                </AppShell>
+              )}
+            </Protected>
+          }
+        />
+
+        <Route
+          path="/admin/users"
+          element={
+            <Protected profile={profile} userId={userId} loading={dataLoading}>
+              {profile?.role !== 'admin' ? (
+                <Navigate replace to="/app" />
+              ) : (
+                <AppShell profile={profile!} onLogout={handleLogout} onOpenScan={() => setShowScanner(true)}>
+                  <AdminUsersPage
+                    users={allUsers}
+                    currentUserId={userId!}
+                    refresh={refresh}
+                  />
+                </AppShell>
+              )}
             </Protected>
           }
         />
@@ -2764,47 +3433,28 @@ function Protected({
   profile,
   userId,
   loading,
-  error,
 }: {
   children: React.ReactNode
   profile: Profile | null
   userId: string | null
-  loading: boolean
+  loading?: boolean
   error?: string
 }) {
   if (!userId) {
     return <div className="loading-screen">Mengalihkan ke halaman login...</div>
   }
 
-  // Jika data masih dalam proses pengambilan dari database, tampilkan animasi loading halus
-  if (loading || (!profile && !error)) {
+  // Jika data masih dalam proses pengambilan atau profil belum siap, selalu tampilkan animasi loading halus tanpa error flash
+  if (loading || !profile) {
     return (
       <div className="loading-screen">
         <div className="avatar" style={{ width: 58, height: 58, animation: 'pulse 1.5s infinite' }}>
           <Wallet size={28} />
         </div>
-        <p style={{ fontWeight: 600, color: 'var(--primary)', marginTop: 8 }}>Menyiapkan akun keluarga...</p>
+        <p style={{ fontWeight: 600, color: 'var(--primary)', marginTop: 8 }}>Memuat akun Chillbank...</p>
       </div>
     )
   }
 
-  // Hanya jika pengambilan data selesai dan profil tidak ditemukan
-  if (!profile) {
-    return (
-      <div className="loading-screen" style={{ padding: 24, textAlign: 'center' }}>
-        <div className="form-error">
-          Profil belum siap. Silakan coba masuk kembali.
-          {error && (
-            <div style={{ marginTop: 8, fontSize: '0.8rem' }}>
-              Detail error: {error}
-            </div>
-          )}
-        </div>
-        <Link to="/login" className="button button-secondary" style={{ marginTop: 14 }}>
-          Kembali ke Login
-        </Link>
-      </div>
-    )
-  }
   return <>{children}</>
 }

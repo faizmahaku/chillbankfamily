@@ -158,11 +158,14 @@ security definer
 set search_path = ''
 as $$
 begin
-  if new.role is distinct from old.role
+  -- Hanya blokir jika dipanggil dari sesi autentikasi client (auth.uid() IS NOT NULL)
+  -- dan pemanggil BUKAN admin. Query langsung dari SQL Editor (auth.uid() IS NULL) diizinkan.
+  if auth.uid() is not null
+     and new.role is distinct from old.role
      and new.role = 'admin'
      and not exists (
        select 1 from public.profiles p
-       where p.id = (select auth.uid()) and p.role = 'admin'
+       where p.id = auth.uid() and p.role = 'admin'
      ) then
     raise exception 'Hanya administrator yang dapat mengubah role menjadi admin';
   end if;
@@ -339,6 +342,12 @@ create policy "Update own profile" on public.profiles
 for update to authenticated
 using (id = (select auth.uid()))
 with check (id = (select auth.uid()));
+
+drop policy if exists "Admin update any profile" on public.profiles;
+create policy "Admin update any profile" on public.profiles
+for update to authenticated
+using (public.is_admin())
+with check (public.is_admin());
 
 -- Policies Piggy Banks
 drop policy if exists "Read own banks" on public.piggy_banks;
