@@ -127,6 +127,7 @@ function Modal({ title, children, onClose }: { title: string; children: React.Re
       }}
     >
       <section className="modal">
+        <div className="modal-handle-bar" />
         <div className="modal-heading">
           <h3>{title}</h3>
           <button className="modal-close-btn" onClick={onClose} aria-label="Tutup">

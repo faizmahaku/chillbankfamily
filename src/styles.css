@@ -1189,6 +1189,10 @@ button, input, select, textarea {
   to { opacity: 1; transform: scale(1) translateY(0); }
 }
 
+.modal-handle-bar {
+  display: none;
+}
+
 .modal-heading {
   display: flex;
   align-items: center;
@@ -1516,12 +1520,411 @@ button, input, select, textarea {
   }
 }
 
+@keyframes sheetSlideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0.85;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
 @media (max-width: 767px) {
+  /* 1. Shell & Safe Area Layout */
+  html, body {
+    overscroll-behavior-y: none;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .app-layout {
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+  }
+
   .sidebar {
     transform: translateX(-100%);
+    width: 290px;
+    max-width: 82vw;
+    box-shadow: 12px 0 35px rgba(15, 23, 42, 0.22);
+    transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1);
+    padding-top: calc(18px + env(safe-area-inset-top, 0px));
+    padding-bottom: calc(20px + env(safe-area-inset-bottom, 0px));
+    z-index: 50;
   }
 
   .sidebar.sidebar-open {
     transform: translateX(0);
   }
+
+  .mobile-scrim {
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+  }
+
+  /* 2. Topbar Header (Translucent Glass Effect) */
+  .app-topbar {
+    height: calc(56px + env(safe-area-inset-top, 0px));
+    padding-top: env(safe-area-inset-top, 0px);
+    padding-left: 14px;
+    padding-right: 14px;
+    background: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(226, 232, 240, 0.85);
+  }
+
+  .topbar-left {
+    gap: 8px;
+  }
+
+  .topbar-left .eyebrow {
+    font-size: 0.7rem;
+    letter-spacing: 0.04em;
+  }
+
+  .topbar-right {
+    gap: 8px;
+  }
+
+  .topbar-right .online-chip {
+    padding: 3px 8px;
+    font-size: 0.72rem;
+  }
+
+  .topbar-right button {
+    padding: 6px 10px;
+    font-size: 0.76rem;
+  }
+
+  /* 3. Page Content Area */
+  .app-main {
+    padding-bottom: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 16px) + 24px);
+  }
+
+  .page-content {
+    padding: 16px 14px;
+  }
+
+  /* 4. Page Headings & Action Bars */
+  .page-heading {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+    margin-bottom: 18px;
+  }
+
+  .page-heading h1 {
+    font-size: 1.45rem;
+    letter-spacing: -0.02em;
+    line-height: 1.25;
+  }
+
+  .page-heading p {
+    font-size: 0.85rem;
+    line-height: 1.4;
+  }
+
+  .page-heading > div:last-child {
+    display: flex;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .page-heading > div:last-child button,
+  .page-heading > div:last-child a {
+    flex: 1;
+    justify-content: center;
+    padding: 10px 14px;
+    font-size: 0.88rem;
+  }
+
+  /* 5. Mobile Native Bottom Sheet Modal */
+  .modal-backdrop {
+    align-items: flex-end;
+    padding: 0;
+    background: rgba(15, 23, 42, 0.58);
+    backdrop-filter: blur(5px);
+    -webkit-backdrop-filter: blur(5px);
+  }
+
+  .modal {
+    border-radius: 26px 26px 0 0;
+    width: 100%;
+    max-width: 100%;
+    max-height: 88vh;
+    padding: 12px 18px calc(24px + env(safe-area-inset-bottom, 16px));
+    animation: sheetSlideUp 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    box-shadow: 0 -12px 40px rgba(0, 0, 0, 0.22);
+    border: none;
+  }
+
+  .modal-handle-bar {
+    display: block;
+    width: 42px;
+    height: 5px;
+    background: #cbd5e1;
+    border-radius: var(--radius-full);
+    margin: 0 auto 12px;
+  }
+
+  .modal-heading {
+    padding-bottom: 10px;
+    margin-bottom: 14px;
+  }
+
+  .modal-heading h3 {
+    font-size: 1.15rem;
+  }
+
+  /* 6. Summary Card (Digital Banking / Wallet Card Look) */
+  .summary-card {
+    border-radius: 20px;
+    padding: 20px 18px;
+    gap: 14px;
+    box-shadow: 0 10px 28px -4px rgba(5, 150, 105, 0.35);
+    background: linear-gradient(135deg, #064e3b 0%, #047857 55%, #059669 100%);
+    position: relative;
+    overflow: hidden;
+  }
+
+  .summary-card::after {
+    content: '';
+    position: absolute;
+    top: -40px;
+    right: -40px;
+    width: 140px;
+    height: 140px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.08);
+    pointer-events: none;
+  }
+
+  .summary-label {
+    font-size: 0.72rem;
+    letter-spacing: 0.06em;
+  }
+
+  .summary-card h2 {
+    font-size: 1.85rem;
+    letter-spacing: -0.03em;
+    margin: 4px 0 6px;
+  }
+
+  .summary-card p {
+    font-size: 0.82rem;
+  }
+
+  .summary-meta {
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.8rem;
+    padding-top: 10px;
+    border-top: 1px solid rgba(255, 255, 255, 0.16);
+  }
+
+  /* 7. KPI Quick Stats Grid (Phone-Optimized 3-Column Strip) */
+  .stat-grid {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 8px;
+    margin-bottom: 20px;
+  }
+
+  .stat-card {
+    padding: 10px 6px;
+    border-radius: 14px;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 6px;
+  }
+
+  .stat-icon {
+    width: 32px;
+    height: 32px;
+    border-radius: 10px;
+    margin: 0;
+  }
+
+  .stat-icon svg {
+    width: 16px;
+    height: 16px;
+  }
+
+  .stat-card div small {
+    font-size: 0.68rem;
+    line-height: 1.15;
+    display: block;
+    color: var(--text-muted);
+  }
+
+  .stat-card div b {
+    font-size: 1.05rem;
+    line-height: 1.2;
+  }
+
+  .stat-card div span {
+    display: none;
+  }
+
+  /* 8. Mobile Bottom Navigation Dock */
+  .mobile-bottom-nav {
+    height: calc(60px + env(safe-area-inset-bottom, 0px));
+    padding: 4px 6px env(safe-area-inset-bottom, 0px);
+    background: rgba(255, 255, 255, 0.94);
+    backdrop-filter: blur(24px);
+    -webkit-backdrop-filter: blur(24px);
+    border-top: 1px solid rgba(226, 232, 240, 0.9);
+    box-shadow: 0 -4px 24px rgba(15, 23, 42, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+  }
+
+  .bottom-tab {
+    flex: 1;
+    padding: 4px 2px;
+    gap: 2px;
+    font-size: 0.65rem;
+    font-weight: 600;
+    border-radius: 10px;
+    transition: all 0.15s ease;
+    text-align: center;
+  }
+
+  .bottom-tab:active {
+    transform: scale(0.9);
+  }
+
+  .bottom-tab.active {
+    color: var(--primary);
+  }
+
+  .bottom-tab.active svg {
+    transform: translateY(-1px);
+    filter: drop-shadow(0 2px 5px rgba(5, 150, 105, 0.4));
+  }
+
+  .bottom-scan-btn {
+    width: 48px;
+    height: 48px;
+    margin-top: -24px;
+    box-shadow: 0 6px 18px rgba(5, 150, 105, 0.45);
+    border: 3.5px solid #ffffff;
+    flex-shrink: 0;
+  }
+
+  .bottom-scan-btn:active {
+    transform: scale(0.88);
+  }
+
+  /* 9. Forms, Inputs & iOS Ergonomics */
+  input, select, textarea {
+    font-size: 16px !important; /* Mencegah auto-zoom di browser iOS */
+    border-radius: 12px;
+    min-height: 46px;
+  }
+
+  .button {
+    min-height: 44px;
+    border-radius: 12px;
+    font-size: 0.88rem;
+  }
+
+  .button:active {
+    transform: scale(0.975);
+  }
+
+  .scanner-toggle {
+    border-radius: 12px;
+    padding: 3px;
+  }
+
+  .scanner-toggle button {
+    padding: 8px 6px;
+    font-size: 0.8rem;
+    min-height: 38px;
+  }
+
+  /* 10. Cards, Activity Rows & Feed */
+  .dashboard-columns {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .bank-cards-grid {
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .celengan-card {
+    border-radius: 18px;
+  }
+
+  .celengan-actions {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .celengan-actions button,
+  .celengan-actions a {
+    flex: 1;
+    text-align: center;
+    justify-content: center;
+  }
+
+  .activity-row {
+    padding: 12px 8px;
+  }
+
+  .bank-row {
+    padding: 12px 10px;
+  }
+
+  .activity-row:active,
+  .bank-row:active {
+    background: var(--bg-page);
+  }
+
+  /* 11. Public Hero & Scanner */
+  .hero {
+    padding: 36px 16px 48px;
+    gap: 28px;
+  }
+
+  .hero-copy h1 {
+    font-size: 2rem;
+    line-height: 1.22;
+  }
+
+  .hero-lead {
+    font-size: 0.98rem;
+    margin-bottom: 20px;
+  }
+
+  .hero-actions {
+    flex-direction: column;
+    gap: 10px;
+    margin-bottom: 24px;
+  }
+
+  .hero-actions a,
+  .hero-actions button {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .public-nav {
+    padding: 0 16px;
+    height: 60px;
+  }
+
+  .catalog-grid {
+    grid-template-columns: 1fr;
+    gap: 18px;
+  }
 }
+
