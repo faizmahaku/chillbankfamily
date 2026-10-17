@@ -6,7 +6,18 @@ import type { PiggyBank, Profile, SavingsEntry, SavingsGoal, PiggyBankOrder } fr
 
 const rupiah = (n: number) => new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', maximumFractionDigits: 0 }).format(n)
 const dateText = (s: string) => new Intl.DateTimeFormat('id-ID', { day: 'numeric', month: 'short', year: 'numeric' }).format(new Date(s))
-const errorText = (e: unknown) => e instanceof Error ? e.message : 'Terjadi kesalahan. Coba lagi.'
+const errorText = (e: unknown) => {
+  if (e instanceof Error) {
+    if (e.message.includes('Invalid login credentials')) {
+      return 'Email atau kata sandi salah. Pastikan akun sudah didaftarkan dan password sudah sesuai.'
+    }
+    if (e.message.includes('Email not confirmed')) {
+      return 'Email belum dikonfirmasi. Periksa kotak masuk/spam email Anda atau matikan Confirm Email di Supabase.'
+    }
+    return e.message
+  }
+  return 'Terjadi kesalahan. Coba lagi.'
+}
 function ConfigNotice() {
   return <div className="notice"><CircleHelp size={20}/><div><b>Supabase belum dikonfigurasi</b><p>Buat file <code>.env.local</code> dari <code>.env.example</code>, isi URL dan publishable/anon key Supabase, lalu jalankan ulang aplikasi.</p></div></div>
 }
@@ -198,13 +209,20 @@ export default function App() {
   async function refresh(){await loadData(userId||undefined)}
   async function auth(mode:'login'|'register',email:string,password:string,name?:string) {
     if(!supabase)throw new Error('Supabase belum dikonfigurasi.')
+    const cleanEmail = email.trim().toLowerCase()
+    const cleanPassword = password.trim()
     if(mode==='register'){
-      const {data,error}=await supabase.auth.signUp({email,password,options:{data:{full_name:name||''}}})
+      const {data,error}=await supabase.auth.signUp({email:cleanEmail,password:cleanPassword,options:{data:{full_name:name?.trim()||''}}})
       if(error)throw error
-      if(data.session){await supabase.auth.signOut();setUserId(null);setProfile(null)}
-      navigate('/login',{replace:true,state:{message:'Pendaftaran berhasil. Silakan masuk menggunakan email dan kata sandi yang baru dibuat.'}})
+      if(data.session && data.user){
+        setUserId(data.user.id);
+        await loadData(data.user.id);
+        navigate('/app',{replace:true});
+        return;
+      }
+      navigate('/login',{replace:true,state:{message:'Pendaftaran berhasil. Silakan periksa email untuk konfirmasi (jika aktif) lalu masuk.'}})
     } else {
-      const {data,error}=await supabase.auth.signInWithPassword({email,password})
+      const {data,error}=await supabase.auth.signInWithPassword({email:cleanEmail,password:cleanPassword})
       if(error)throw error
       setUserId(data.user.id);await loadData(data.user.id)
       const params=new URLSearchParams(location.search);const next=params.get('next')
