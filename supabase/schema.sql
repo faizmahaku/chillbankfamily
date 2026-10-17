@@ -214,7 +214,7 @@ create or replace function public.add_savings_entry(
 )
 returns uuid
 language plpgsql
-security invoker
+security definer
 set search_path = ''
 as $$
 declare
@@ -257,6 +257,7 @@ begin
 end;
 $$;
 
+revoke all on function public.add_savings_entry(uuid, text, bigint, text) from public, anon;
 grant execute on function public.add_savings_entry(uuid, text, bigint, text) to authenticated;
 
 -- 13. RPC: ADMIN MEMBUAT / MENDAFTARKAN CELENGAN & PROGRAMMING NFC NTAG213
@@ -322,7 +323,55 @@ $$;
 
 grant execute on function public.public_bank_lookup(text) to anon, authenticated;
 
--- 15. ROW LEVEL SECURITY (RLS) POLICIES
+-- 15. RPC: MEMBER MEMBUAT CELENGAN DIGITAL PRIBADI / KELUARGA
+drop function if exists public.member_create_digital_bank(text) cascade;
+
+create or replace function public.member_create_digital_bank(
+  p_name text default 'Tabungan Utama'
+)
+returns uuid
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_user uuid := auth.uid();
+  v_id uuid;
+  v_serial text;
+  v_clean_name text;
+begin
+  if v_user is null then
+    raise exception 'Harap login terlebih dahulu';
+  end if;
+
+  v_clean_name := coalesce(nullif(trim(p_name), ''), 'Tabungan Utama');
+  v_serial := 'CBF-DGT-' || upper(substr(md5(random()::text || clock_timestamp()::text), 1, 6));
+
+  insert into public.piggy_banks (
+    serial,
+    name,
+    owner_id,
+    category,
+    color,
+    status
+  ) values (
+    v_serial,
+    v_clean_name,
+    v_user,
+    'smart-classic',
+    'emerald',
+    'active'
+  )
+  returning id into v_id;
+
+  return v_id;
+end;
+$$;
+
+revoke all on function public.member_create_digital_bank(text) from public, anon;
+grant execute on function public.member_create_digital_bank(text) to authenticated;
+
+-- 16. ROW LEVEL SECURITY (RLS) POLICIES
 alter table public.profiles enable row level security;
 alter table public.piggy_banks enable row level security;
 alter table public.savings_entries enable row level security;
@@ -380,6 +429,23 @@ using (
   )
   or public.is_admin()
 );
+
+drop policy if exists "Insert own entries" on public.savings_entries;
+create policy "Insert own entries" on public.savings_entries
+for insert to authenticated
+with check (
+  user_id = (select auth.uid())
+  and exists (
+    select 1 from public.piggy_banks b
+    where b.id = piggy_bank_id and (b.owner_id = (select auth.uid()) or public.is_admin())
+  )
+);
+
+drop policy if exists "Admin manage all entries" on public.savings_entries;
+create policy "Admin manage all entries" on public.savings_entries
+for all to authenticated
+using (public.is_admin())
+with check (public.is_admin());
 
 -- Policies Savings Goals
 drop policy if exists "Manage own goals" on public.savings_goals;

@@ -964,6 +964,12 @@ function NfcPublicPage({
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [claimBusy, setClaimBusy] = useState(false)
+  const [showQuickEntry, setShowQuickEntry] = useState(false)
+  const [quickType, setQuickType] = useState<'deposit' | 'withdrawal'>('deposit')
+  const [quickAmount, setQuickAmount] = useState('')
+  const [quickNote, setQuickNote] = useState('')
+  const [quickBusy, setQuickBusy] = useState(false)
+  const [quickErr, setQuickErr] = useState('')
 
   useEffect(() => {
     let alive = true
@@ -1012,6 +1018,36 @@ function NfcPublicPage({
       alert(`Gagal menautkan celengan: ${err.message}`)
     } finally {
       setClaimBusy(false)
+    }
+  }
+
+  async function handleQuickEntrySubmit(e: FormEvent) {
+    e.preventDefault()
+    if (!supabase || !owned) return
+    const val = Number(quickAmount)
+    if (!val || val <= 0) {
+      setQuickErr('Nominal harus lebih dari 0')
+      return
+    }
+    setQuickBusy(true)
+    setQuickErr('')
+    try {
+      const { error: rpcErr } = await supabase.rpc('add_savings_entry', {
+        p_piggy_bank_id: owned.id,
+        p_entry_type: quickType,
+        p_amount: Math.round(val),
+        p_note: quickNote,
+      })
+      if (rpcErr) throw rpcErr
+      setShowQuickEntry(false)
+      setQuickAmount('')
+      setQuickNote('')
+      await refresh()
+      alert('Catatan tabungan berhasil disimpan!')
+    } catch (err: any) {
+      setQuickErr(errorText(err))
+    } finally {
+      setQuickBusy(false)
     }
   }
 
@@ -1064,9 +1100,14 @@ function NfcPublicPage({
                   <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--forest)', margin: '4px 0' }}>
                     {rupiah(balance)}
                   </div>
-                  <Button kind="primary" className="button-full" style={{ marginTop: 10 }} onClick={() => navigate(`/app/celengan/${owned.id}`)}>
-                    Buka Rincian Tabungan <ChevronRight size={16} />
-                  </Button>
+                  <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+                    <Button kind="primary" className="button-full" onClick={() => setShowQuickEntry(true)}>
+                      <Plus size={16} /> Catat Tabungan Sekarang
+                    </Button>
+                    <Button kind="secondary" onClick={() => navigate(`/app/celengan/${owned.id}`)}>
+                      Rincian <ChevronRight size={16} />
+                    </Button>
+                  </div>
                 </div>
               ) : user ? (
                 <div>
@@ -1094,6 +1135,54 @@ function NfcPublicPage({
           )}
         </div>
       </div>
+
+      {/* Modal Quick Entry Tap NFC */}
+      {showQuickEntry && owned && (
+        <Modal title={`Catat Tabungan — ${owned.name}`} onClose={() => setShowQuickEntry(false)}>
+          <form className="stack-form" onSubmit={handleQuickEntrySubmit}>
+            <div className="scanner-toggle">
+              <button
+                type="button"
+                className={quickType === 'deposit' ? 'active' : ''}
+                onClick={() => setQuickType('deposit')}
+              >
+                <ArrowDownLeft size={16} /> Setoran Tabungan
+              </button>
+              <button
+                type="button"
+                className={quickType === 'withdrawal' ? 'active' : ''}
+                onClick={() => setQuickType('withdrawal')}
+              >
+                <ArrowUpRight size={16} /> Penarikan Uang
+              </button>
+            </div>
+
+            <Field
+              label="Nominal (Rupiah)"
+              type="number"
+              min="1"
+              step="1"
+              value={quickAmount}
+              onChange={(e) => setQuickAmount(e.target.value)}
+              required
+              placeholder="Contoh: 50000"
+            />
+
+            <Field
+              label="Catatan (Opsional)"
+              value={quickNote}
+              onChange={(e) => setQuickNote(e.target.value)}
+              placeholder="Contoh: Tabungan dari uang saku"
+            />
+
+            {quickErr && <div className="form-error">{quickErr}</div>}
+
+            <Button type="submit" disabled={quickBusy} className="button-full">
+              {quickBusy ? 'Menyimpan...' : 'Simpan Transaksi'}
+            </Button>
+          </form>
+        </Modal>
+      )}
     </div>
   )
 }
@@ -1128,6 +1217,8 @@ function Dashboard({
 
   // Form State Catat Tabungan
   const [showEntry, setShowEntry] = useState(false)
+  const [showNoBankModal, setShowNoBankModal] = useState(false)
+  const [creatingDigital, setCreatingDigital] = useState(false)
   const [entryBank, setEntryBank] = useState('')
   const [entryType, setEntryType] = useState<'deposit' | 'withdrawal'>('deposit')
   const [amount, setAmount] = useState('')
@@ -1135,16 +1226,47 @@ function Dashboard({
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
 
+  async function handleCreateDigitalBank(openEntryAfter = false) {
+    if (!supabase) return
+    setCreatingDigital(true)
+    setError('')
+    try {
+      const { data: newId, error: createErr } = await supabase.rpc('member_create_digital_bank', {
+        p_name: 'Tabungan Utama Keluarga',
+      })
+      if (createErr) throw createErr
+      await refresh()
+      setShowNoBankModal(false)
+      if (openEntryAfter) {
+        setEntryBank(newId || '')
+        setShowEntry(true)
+      }
+    } catch (err: any) {
+      alert(`Gagal membuat celengan digital: ${err.message || err}`)
+    } finally {
+      setCreatingDigital(false)
+    }
+  }
+
   async function submitEntry(e: FormEvent) {
     e.preventDefault()
-    if (!supabase || !entryBank) return
+    const targetBankId = entryBank || banks[0]?.id
+    if (!supabase || !targetBankId) {
+      setError('Pilih celengan terlebih dahulu')
+      return
+    }
+    const val = Number(amount)
+    if (!val || val <= 0) {
+      setError('Nominal harus lebih dari 0')
+      return
+    }
     setBusy(true)
     setError('')
     try {
       const { error: rpcError } = await supabase.rpc('add_savings_entry', {
-        p_piggy_bank_id: entryBank,
+        p_piggy_bank_id: targetBankId,
         p_entry_type: entryType,
-        p_amount: Math.round(Number(amount)),
+        p_amount: Math.round(val),
         p_note: note,
       })
       if (rpcError) throw rpcError
@@ -1176,10 +1298,13 @@ function Dashboard({
           </Button>
           <Button
             onClick={() => {
-              setEntryBank(banks[0]?.id || '')
-              setShowEntry(true)
+              if (!banks.length) {
+                setShowNoBankModal(true)
+              } else {
+                setEntryBank(banks[0]?.id || '')
+                setShowEntry(true)
+              }
             }}
-            disabled={!banks.length}
           >
             <Plus size={18} /> Catat Tabungan
           </Button>
@@ -1274,12 +1399,22 @@ function Dashboard({
           ) : (
             <EmptyState
               icon={<Wallet size={40} />}
-              title="Belum Ada Celengan"
-              text="Pesan celengan fisik baru atau tautkan nomor seri celengan yang sudah Anda miliki."
+              title="Belum Ada Celengan Terhubung"
+              text="Aktifkan celengan digital instan secara gratis atau tautkan nomor seri celengan fisik Anda."
               action={
-                <Link to="/app/pesanan" className="button button-primary button-small">
-                  Pesan Celengan Fisik
-                </Link>
+                <div style={{ display: 'flex', gap: 8, justifyContent: 'center', flexWrap: 'wrap' }}>
+                  <Button
+                    kind="primary"
+                    className="button-small"
+                    onClick={() => handleCreateDigitalBank(false)}
+                    disabled={creatingDigital}
+                  >
+                    <Sparkles size={14} /> {creatingDigital ? 'Mengaktifkan...' : '⚡ Aktifkan Celengan Digital'}
+                  </Button>
+                  <Link to="/app/pesanan" className="button button-secondary button-small">
+                    Pesan Celengan Fisik
+                  </Link>
+                </div>
               }
             />
           )}
@@ -1331,13 +1466,46 @@ function Dashboard({
         </section>
       </div>
 
+      {/* Modal Belum Ada Celengan */}
+      {showNoBankModal && (
+        <Modal title="Mulai Catat Tabungan" onClose={() => setShowNoBankModal(false)}>
+          <div style={{ textAlign: 'center', padding: '10px 4px' }}>
+            <div style={{ width: 62, height: 62, borderRadius: '50%', background: 'var(--primary-light)', color: 'var(--primary)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 14px' }}>
+              <Wallet size={32} />
+            </div>
+            <h3 style={{ fontSize: '1.25rem', marginBottom: 8, color: 'var(--forest)' }}>
+              Belum Ada Celengan Terhubung
+            </h3>
+            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: 20 }}>
+              Untuk mencatat setoran atau penarikan, Anda memerlukan celengan terhubung. Aktifkan celengan digital gratis sekarang dalam 1 detik!
+            </p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              <Button
+                kind="primary"
+                className="button-full"
+                onClick={() => handleCreateDigitalBank(true)}
+                disabled={creatingDigital}
+              >
+                <Sparkles size={16} /> {creatingDigital ? 'Mengaktifkan...' : '⚡ Aktifkan Celengan Digital Sekarang'}
+              </Button>
+              <Link to="/app/celengan" className="button button-secondary button-full" onClick={() => setShowNoBankModal(false)}>
+                🔗 Tautkan Nomor Seri Celengan Fisik
+              </Link>
+              <Link to="/app/pesanan" className="button button-ghost button-full" onClick={() => setShowNoBankModal(false)}>
+                📦 Pesan Celengan Fisik Pintar
+              </Link>
+            </div>
+          </div>
+        </Modal>
+      )}
+
       {/* Modal Form Catat Tabungan */}
       {showEntry && (
         <Modal title="Catat Setoran / Penarikan" onClose={() => setShowEntry(false)}>
           <form className="stack-form" onSubmit={submitEntry}>
             <label className="field">
               <span>Pilih Celengan</span>
-              <select value={entryBank} onChange={(e) => setEntryBank(e.target.value)} required>
+              <select value={entryBank || banks[0]?.id || ''} onChange={(e) => setEntryBank(e.target.value)} required>
                 {banks.map((b) => (
                   <option key={b.id} value={b.id}>
                     {b.name} ({b.serial})
@@ -1412,6 +1580,15 @@ function BanksPage({
 }) {
   const [selectedBank, setSelectedBank] = useState<PiggyBank | null>(null)
   const [showQrModal, setShowQrModal] = useState<PiggyBank | null>(null)
+  const [showCreateDigital, setShowCreateDigital] = useState(false)
+  const [digitalName, setDigitalName] = useState('')
+  const [digitalBusy, setDigitalBusy] = useState(false)
+  const [entryTarget, setEntryTarget] = useState<PiggyBank | null>(null)
+  const [entryType, setEntryType] = useState<'deposit' | 'withdrawal'>('deposit')
+  const [entryAmount, setEntryAmount] = useState('')
+  const [entryNote, setEntryNote] = useState('')
+  const [entryBusy, setEntryBusy] = useState(false)
+  const [entryErr, setEntryErr] = useState('')
   const [linkSerial, setLinkSerial] = useState('')
   const [linkBusy, setLinkBusy] = useState(false)
   const [linkMsg, setLinkMsg] = useState('')
@@ -1420,6 +1597,56 @@ function BanksPage({
     entries
       .filter((e) => e.piggy_bank_id === id)
       .reduce((s, e) => s + (e.entry_type === 'deposit' ? Number(e.amount) : -Number(e.amount)), 0)
+
+  async function handleCreateDigitalBank(e: FormEvent) {
+    e.preventDefault()
+    if (!supabase) return
+    setDigitalBusy(true)
+    try {
+      const { data: newId, error: err } = await supabase.rpc('member_create_digital_bank', {
+        p_name: digitalName.trim() || 'Tabungan Utama',
+      })
+      if (err) throw err
+      setShowCreateDigital(false)
+      setDigitalName('')
+      await refresh()
+      alert('Celengan digital berhasil dibuat!')
+    } catch (err: any) {
+      alert(`Gagal membuat celengan: ${err.message || err}`)
+    } finally {
+      setDigitalBusy(false)
+    }
+  }
+
+  async function handleEntrySubmit(e: FormEvent) {
+    e.preventDefault()
+    if (!supabase || !entryTarget) return
+    const val = Number(entryAmount)
+    if (!val || val <= 0) {
+      setEntryErr('Nominal harus lebih dari 0')
+      return
+    }
+    setEntryBusy(true)
+    setEntryErr('')
+    try {
+      const { error: rpcErr } = await supabase.rpc('add_savings_entry', {
+        p_piggy_bank_id: entryTarget.id,
+        p_entry_type: entryType,
+        p_amount: Math.round(val),
+        p_note: entryNote,
+      })
+      if (rpcErr) throw rpcErr
+      setEntryTarget(null)
+      setEntryAmount('')
+      setEntryNote('')
+      await refresh()
+      alert('Catatan tabungan berhasil disimpan!')
+    } catch (err: any) {
+      setEntryErr(errorText(err))
+    } finally {
+      setEntryBusy(false)
+    }
+  }
 
   async function handleLinkBank(e: FormEvent) {
     e.preventDefault()
@@ -1466,7 +1693,12 @@ function BanksPage({
         <div>
           <div className="eyebrow">PRODUK CELENGAN KELUARGA</div>
           <h1>Celengan Terhubung</h1>
-          <p>Koleksi celengan fisik pintar dengan teknologi NFC NTAG213.</p>
+          <p>Koleksi celengan fisik pintar NFC NTAG213 dan kantong tabungan digital.</p>
+        </div>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <Button onClick={() => setShowCreateDigital(true)}>
+            <Sparkles size={16} /> + Buat Celengan Digital
+          </Button>
         </div>
       </div>
 
@@ -1477,7 +1709,7 @@ function BanksPage({
               <div className="celengan-card-header">
                 <div className="celengan-card-top">
                   <span className="badge badge-emerald">
-                    <SmartphoneNfc size={13} /> NTAG213
+                    <SmartphoneNfc size={13} /> {b.serial.startsWith('CBF-DGT') ? 'DIGITAL' : 'NTAG213'}
                   </span>
                   <span className="badge badge-role">{b.status}</span>
                 </div>
@@ -1492,15 +1724,18 @@ function BanksPage({
                 </div>
 
                 <div className="celengan-actions">
-                  <Button kind="secondary" className="button-small" onClick={() => setShowQrModal(b)}>
-                    <QrCode size={15} /> Stiker QR
+                  <Button kind="primary" className="button-small" onClick={() => setEntryTarget(b)}>
+                    <Plus size={14} /> Catat
                   </Button>
-                  <Link to={`/app/celengan/${b.id}`} className="button button-primary button-small">
-                    Detail Mutasi
+                  <Button kind="secondary" className="button-small" onClick={() => setShowQrModal(b)}>
+                    <QrCode size={15} /> QR
+                  </Button>
+                  <Link to={`/app/celengan/${b.id}`} className="button button-ghost button-small">
+                    Rincian
                   </Link>
                 </div>
 
-                {isWebNfcSupported() && (
+                {isWebNfcSupported() && !b.serial.startsWith('CBF-DGT') && (
                   <Button kind="ghost" className="button-small" onClick={() => handleWriteNfc(b)}>
                     <SmartphoneNfc size={14} /> Tulis ke Tag NTAG213
                   </Button>
@@ -1513,7 +1748,12 @@ function BanksPage({
         <EmptyState
           icon={<Wallet size={48} />}
           title="Belum Ada Celengan Tertaut"
-          text="Gunakan formulir di bawah ini untuk menautkan nomor seri celengan fisik Anda."
+          text="Buat celengan digital instan secara gratis atau tautkan nomor seri celengan fisik Anda di bawah."
+          action={
+            <Button kind="primary" className="button-small" onClick={() => setShowCreateDigital(true)}>
+              <Sparkles size={14} /> Buat Celengan Digital Gratis
+            </Button>
+          }
         />
       )}
 
@@ -1546,6 +1786,75 @@ function BanksPage({
         )}
       </section>
 
+      {/* Modal Buat Celengan Digital */}
+      {showCreateDigital && (
+        <Modal title="Buat Celengan Digital Baru" onClose={() => setShowCreateDigital(false)}>
+          <form className="stack-form" onSubmit={handleCreateDigitalBank}>
+            <Field
+              label="Nama Celengan / Kantong Tabungan"
+              placeholder="Contoh: Tabungan Liburan, Uang Kurban, Celengan Anak"
+              value={digitalName}
+              onChange={(e) => setDigitalName(e.target.value)}
+              required
+            />
+            <p className="fine-print">
+              Celengan digital dapat langsung digunakan untuk mencatat tabungan keluarga, dan nomor seri akan di-generate otomatis.
+            </p>
+            <Button type="submit" disabled={digitalBusy} className="button-full">
+              {digitalBusy ? 'Membuat...' : 'Buat Celengan Sekarang'}
+            </Button>
+          </form>
+        </Modal>
+      )}
+
+      {/* Modal Catat Tabungan dari Card Celengan */}
+      {entryTarget && (
+        <Modal title={`Catat Tabungan — ${entryTarget.name}`} onClose={() => setEntryTarget(null)}>
+          <form className="stack-form" onSubmit={handleEntrySubmit}>
+            <div className="scanner-toggle">
+              <button
+                type="button"
+                className={entryType === 'deposit' ? 'active' : ''}
+                onClick={() => setEntryType('deposit')}
+              >
+                <ArrowDownLeft size={16} /> Setoran Tabungan
+              </button>
+              <button
+                type="button"
+                className={entryType === 'withdrawal' ? 'active' : ''}
+                onClick={() => setEntryType('withdrawal')}
+              >
+                <ArrowUpRight size={16} /> Penarikan Uang
+              </button>
+            </div>
+
+            <Field
+              label="Nominal (Rupiah)"
+              type="number"
+              min="1"
+              step="1"
+              value={entryAmount}
+              onChange={(e) => setEntryAmount(e.target.value)}
+              required
+              placeholder="Contoh: 25000"
+            />
+
+            <Field
+              label="Catatan (Opsional)"
+              value={entryNote}
+              onChange={(e) => setEntryNote(e.target.value)}
+              placeholder="Contoh: Hasil menyisihkan uang belanja"
+            />
+
+            {entryErr && <div className="form-error">{entryErr}</div>}
+
+            <Button type="submit" disabled={entryBusy} className="button-full">
+              {entryBusy ? 'Menyimpan...' : 'Simpan Transaksi'}
+            </Button>
+          </form>
+        </Modal>
+      )}
+
       {/* Modal QR Code */}
       {showQrModal && <QrStickerModal bank={showQrModal} onClose={() => setShowQrModal(null)} />}
     </>
@@ -1555,11 +1864,57 @@ function BanksPage({
 // ------------------------------------------------------------------------------
 // Detail Celengan Page (/app/celengan/:id)
 // ------------------------------------------------------------------------------
-function BankDetailPage({ banks, entries }: { banks: PiggyBank[]; entries: SavingsEntry[] }) {
+function BankDetailPage({
+  banks,
+  entries,
+  refresh,
+  profile,
+}: {
+  banks: PiggyBank[]
+  entries: SavingsEntry[]
+  refresh: () => Promise<void>
+  profile: Profile
+}) {
   const { id } = useParams()
   const bank = banks.find((b) => b.id === id)
   const items = entries.filter((e) => e.piggy_bank_id === id).sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at))
   const balance = items.reduce((s, e) => s + (e.entry_type === 'deposit' ? Number(e.amount) : -Number(e.amount)), 0)
+
+  const [showEntry, setShowEntry] = useState(false)
+  const [entryType, setEntryType] = useState<'deposit' | 'withdrawal'>('deposit')
+  const [amount, setAmount] = useState('')
+  const [note, setNote] = useState('')
+  const [busy, setBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  async function submitEntry(e: FormEvent) {
+    e.preventDefault()
+    if (!supabase || !bank) return
+    const val = Number(amount)
+    if (!val || val <= 0) {
+      setError('Nominal harus lebih dari 0')
+      return
+    }
+    setBusy(true)
+    setError('')
+    try {
+      const { error: rpcError } = await supabase.rpc('add_savings_entry', {
+        p_piggy_bank_id: bank.id,
+        p_entry_type: entryType,
+        p_amount: Math.round(val),
+        p_note: note,
+      })
+      if (rpcError) throw rpcError
+      setShowEntry(false)
+      setAmount('')
+      setNote('')
+      await refresh()
+    } catch (err: any) {
+      setError(errorText(err))
+    } finally {
+      setBusy(false)
+    }
+  }
 
   if (!bank) {
     return (
@@ -1579,9 +1934,14 @@ function BankDetailPage({ banks, entries }: { banks: PiggyBank[]; entries: Savin
           <h1>{bank.name}</h1>
           <p>Rincian mutasi tabungan khusus celengan ini.</p>
         </div>
-        <Link to="/app/celengan" className="button button-secondary">
-          Kembali
-        </Link>
+        <div style={{ display: 'flex', gap: 10 }}>
+          <Button onClick={() => setShowEntry(true)}>
+            <Plus size={16} /> Catat Tabungan
+          </Button>
+          <Link to="/app/celengan" className="button button-secondary">
+            Kembali
+          </Link>
+        </div>
       </div>
 
       <div className="summary-card">
@@ -1589,6 +1949,28 @@ function BankDetailPage({ banks, entries }: { banks: PiggyBank[]; entries: Savin
           <span className="summary-label">SALDO CELENGAN INI</span>
           <h2>{rupiah(balance)}</h2>
           <p>Nomor Seri: {bank.serial} • Status: {bank.status}</p>
+        </div>
+        <div style={{ display: 'flex', gap: 8, marginTop: 14 }}>
+          <Button
+            kind="primary"
+            className="button-small"
+            onClick={() => {
+              setEntryType('deposit')
+              setShowEntry(true)
+            }}
+          >
+            <ArrowDownLeft size={14} /> + Setor Tabungan
+          </Button>
+          <Button
+            kind="secondary"
+            className="button-small"
+            onClick={() => {
+              setEntryType('withdrawal')
+              setShowEntry(true)
+            }}
+          >
+            <ArrowUpRight size={14} /> − Tarik Tabungan
+          </Button>
         </div>
       </div>
 
@@ -1632,6 +2014,57 @@ function BankDetailPage({ banks, entries }: { banks: PiggyBank[]; entries: Savin
           />
         )}
       </section>
+
+      {/* Modal Catat Tabungan Langsung di Detail */}
+      {showEntry && (
+        <Modal title={`Catat Tabungan — ${bank.name}`} onClose={() => setShowEntry(false)}>
+          <form className="stack-form" onSubmit={submitEntry}>
+            <div className="scanner-toggle">
+              <button
+                type="button"
+                className={entryType === 'deposit' ? 'active' : ''}
+                onClick={() => setEntryType('deposit')}
+              >
+                <ArrowDownLeft size={16} /> Setoran Tabungan
+              </button>
+              <button
+                type="button"
+                className={entryType === 'withdrawal' ? 'active' : ''}
+                onClick={() => setEntryType('withdrawal')}
+              >
+                <ArrowUpRight size={16} /> Penarikan Uang
+              </button>
+            </div>
+
+            <Field
+              label="Nominal (Rupiah)"
+              type="number"
+              min="1"
+              step="1"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              required
+              placeholder="Contoh: 50000"
+            />
+
+            <Field
+              label="Catatan (Opsional)"
+              value={note}
+              onChange={(e) => setNote(e.target.value)}
+              placeholder="Contoh: Tabungan mingguan anak"
+            />
+
+            {error && <div className="form-error">{error}</div>}
+
+            <Button type="submit" disabled={busy} className="button-full">
+              {busy ? 'Menyimpan...' : 'Simpan Transaksi'}
+            </Button>
+            <p className="fine-print">
+              Catatan tabungan tersinkron secara real-time ke akun keluarga Anda.
+            </p>
+          </form>
+        </Modal>
+      )}
     </>
   )
 }
@@ -3435,7 +3868,7 @@ export default function App() {
           element={
             <Protected profile={profile} userId={userId} loading={dataLoading}>
               <AppShell profile={profile!} onLogout={handleLogout} onOpenScan={() => setShowScanner(true)}>
-                <BankDetailPage banks={banks} entries={entries} />
+                <BankDetailPage banks={banks} entries={entries} refresh={refresh} profile={profile!} />
               </AppShell>
             </Protected>
           }
