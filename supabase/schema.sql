@@ -94,7 +94,26 @@ create index if not exists idx_entries_user_date on public.savings_entries(user_
 create index if not exists idx_goals_user on public.savings_goals(user_id);
 create index if not exists idx_orders_user_created on public.piggy_bank_orders(user_id, created_at desc);
 
--- 8. TRIGGER OTOMATIS: BUAT PROFIL SAAT USER BARU MENDAFTAR
+-- 8. HELPER SECURITY DEFINER: CEK APAKAH USER ADALAH ADMIN
+-- Menggunakan security definer agar mengecek admin TIDAK memicu rekursi RLS pada tabel profiles!
+drop function if exists public.is_admin() cascade;
+
+create or replace function public.is_admin()
+returns boolean
+language sql
+security definer
+set search_path = ''
+as $$
+  select exists (
+    select 1 from public.profiles
+    where id = auth.uid() and role = 'admin'
+  );
+$$;
+
+revoke all on function public.is_admin() from public;
+grant execute on function public.is_admin() to authenticated, anon;
+
+-- 9. TRIGGER OTOMATIS: BUAT PROFIL SAAT USER BARU MENDAFTAR
 drop trigger if exists on_auth_user_created on auth.users;
 drop function if exists public.handle_new_user() cascade;
 
@@ -128,13 +147,14 @@ create trigger on_auth_user_created
 after insert on auth.users
 for each row execute function public.handle_new_user();
 
--- 9. TRIGGER: KEAMANAN ROLE PROFIL (NON-ADMIN TIDAK BISA SELF-PROMOTE JADI ADMIN)
+-- 10. TRIGGER: KEAMANAN ROLE PROFIL (NON-ADMIN TIDAK BISA SELF-PROMOTE JADI ADMIN)
 drop trigger if exists protect_profile_role_trigger on public.profiles;
 drop function if exists public.protect_profile_role() cascade;
 
 create or replace function public.protect_profile_role()
 returns trigger
 language plpgsql
+security definer
 set search_path = ''
 as $$
 begin
@@ -154,7 +174,7 @@ create trigger protect_profile_role_trigger
 before update on public.profiles
 for each row execute function public.protect_profile_role();
 
--- 10. RPC: JARING PENGAMAN PROFIL (MEMASTIKAN PROFIL TERSEDIA SAAT LOGIN)
+-- 11. RPC: JARING PENGAMAN PROFIL (MEMASTIKAN PROFIL TERSEDIA SAAT LOGIN)
 drop function if exists public.ensure_my_profile() cascade;
 
 create or replace function public.ensure_my_profile()
@@ -180,7 +200,7 @@ $$;
 revoke all on function public.ensure_my_profile() from public, anon;
 grant execute on function public.ensure_my_profile() to authenticated;
 
--- 11. RPC: TAMBAH TRANSAKSI SETOR / TARIK TABUNGAN DENGAN LOCK CONCURRENCY
+-- 12. RPC: TAMBAH TRANSAKSI SETOR / TARIK TABUNGAN DENGAN LOCK CONCURRENCY
 drop function if exists public.add_savings_entry(uuid, text, bigint, text) cascade;
 
 create or replace function public.add_savings_entry(
@@ -211,7 +231,7 @@ begin
 
   -- Kunci baris celengan agar penarikan tidak melebihi saldo aktual
   perform 1 from public.piggy_banks
-    where id = p_piggy_bank_id and (owner_id = v_user or exists (select 1 from public.profiles p where p.id = v_user and p.role = 'admin')) and status = 'active'
+    where id = p_piggy_bank_id and (owner_id = v_user or public.is_admin()) and status = 'active'
     for update;
   if not found then
     raise exception 'Celengan tidak ditemukan, nonaktif, atau bukan milik Anda';
@@ -236,8 +256,7 @@ $$;
 
 grant execute on function public.add_savings_entry(uuid, text, bigint, text) to authenticated;
 
--- 12. RPC: ADMIN MEMBUAT / MENDAFTARKAN CELENGAN & PROGRAMMING NFC NTAG213
--- Drop versi lama dengan 3 parameter maupun 6 parameter agar tidak bentrok
+-- 13. RPC: ADMIN MEMBUAT / MENDAFTARKAN CELENGAN & PROGRAMMING NFC NTAG213
 drop function if exists public.admin_create_bank(text, text, uuid) cascade;
 drop function if exists public.admin_create_bank(text, text, uuid, text, text, text) cascade;
 
@@ -256,10 +275,7 @@ set search_path = ''
 as $$
 declare v_id uuid;
 begin
-  if not exists (
-    select 1 from public.profiles p
-    where p.id = auth.uid() and p.role = 'admin'
-  ) then
+  if not public.is_admin() then
     raise exception 'Hanya administrator yang berhak mendaftarkan celengan';
   end if;
 
@@ -279,8 +295,7 @@ $$;
 
 grant execute on function public.admin_create_bank(text, text, uuid, text, text, text) to authenticated;
 
--- 13. RPC: LOOKUP PUBLIK UNTUK SCAN NFC / QR CELENGAN
--- Drop fungsi lama terlebih dahulu karena tipe kolom OUT / RETURNS TABLE diperbarui
+-- 14. RPC: LOOKUP PUBLIK UNTUK SCAN NFC / QR CELENGAN
 drop function if exists public.public_bank_lookup(text) cascade;
 
 create or replace function public.public_bank_lookup(p_serial text)
@@ -304,18 +319,19 @@ $$;
 
 grant execute on function public.public_bank_lookup(text) to anon, authenticated;
 
--- 14. ROW LEVEL SECURITY (RLS) POLICIES
+-- 15. ROW LEVEL SECURITY (RLS) POLICIES
 alter table public.profiles enable row level security;
 alter table public.piggy_banks enable row level security;
 alter table public.savings_entries enable row level security;
 alter table public.savings_goals enable row level security;
 alter table public.piggy_bank_orders enable row level security;
 
--- Policies Profiles
+-- Policies Profiles:
+-- Bebas dari rekursi karena menggunakan public.is_admin() ber-security definer
 drop policy if exists "Read own profile" on public.profiles;
 create policy "Read own profile" on public.profiles
 for select to authenticated using (
-  id = (select auth.uid()) or exists (select 1 from public.profiles p where p.id = (select auth.uid()) and p.role = 'admin')
+  id = (select auth.uid()) or public.is_admin()
 );
 
 drop policy if exists "Update own profile" on public.profiles;
@@ -328,7 +344,7 @@ with check (id = (select auth.uid()));
 drop policy if exists "Read own banks" on public.piggy_banks;
 create policy "Read own banks" on public.piggy_banks
 for select to authenticated using (
-  owner_id = (select auth.uid()) or exists (select 1 from public.profiles p where p.id = (select auth.uid()) and p.role = 'admin')
+  owner_id = (select auth.uid()) or public.is_admin()
 );
 
 drop policy if exists "Members link unowned bank" on public.piggy_banks;
@@ -340,8 +356,8 @@ with check (owner_id = (select auth.uid()));
 drop policy if exists "Admin manages banks" on public.piggy_banks;
 create policy "Admin manages banks" on public.piggy_banks
 for all to authenticated
-using (exists (select 1 from public.profiles p where p.id = (select auth.uid()) and p.role = 'admin'))
-with check (exists (select 1 from public.profiles p where p.id = (select auth.uid()) and p.role = 'admin'));
+using (public.is_admin())
+with check (public.is_admin());
 
 -- Policies Savings Entries
 drop policy if exists "Read own entries" on public.savings_entries;
@@ -353,10 +369,7 @@ using (
     select 1 from public.piggy_banks b
     where b.id = piggy_bank_id and b.owner_id = (select auth.uid())
   )
-  or exists (
-    select 1 from public.profiles p
-    where p.id = (select auth.uid()) and p.role = 'admin'
-  )
+  or public.is_admin()
 );
 
 -- Policies Savings Goals
@@ -375,13 +388,13 @@ with check (user_id = (select auth.uid()) and status = 'pending');
 drop policy if exists "Members read own orders" on public.piggy_bank_orders;
 create policy "Members read own orders" on public.piggy_bank_orders
 for select to authenticated
-using (user_id = (select auth.uid()) or exists (select 1 from public.profiles p where p.id = (select auth.uid()) and p.role = 'admin'));
+using (user_id = (select auth.uid()) or public.is_admin());
 
 drop policy if exists "Admins manage orders" on public.piggy_bank_orders;
 create policy "Admins manage orders" on public.piggy_bank_orders
 for all to authenticated
-using (exists (select 1 from public.profiles p where p.id = (select auth.uid()) and p.role = 'admin'))
-with check (exists (select 1 from public.profiles p where p.id = (select auth.uid()) and p.role = 'admin'));
+using (public.is_admin())
+with check (public.is_admin());
 
 drop policy if exists "Members confirm received orders" on public.piggy_bank_orders;
 create policy "Members confirm received orders" on public.piggy_bank_orders
@@ -389,7 +402,7 @@ for update to authenticated
 using (user_id = (select auth.uid()) and status = 'delivered')
 with check (user_id = (select auth.uid()) and status = 'received');
 
--- 15. BACKFILL: PASTIKAN SEMUA USER DI AUTH.USERS MEMILIKI BARIS PROFIL
+-- 16. BACKFILL: PASTIKAN SEMUA USER DI AUTH.USERS MEMILIKI BARIS PROFIL
 insert into public.profiles (id, full_name, phone, bio, role, avatar_color)
 select
   u.id,
