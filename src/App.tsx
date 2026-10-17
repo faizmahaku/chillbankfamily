@@ -2636,21 +2636,73 @@ function AdminOrderItem({
 // ------------------------------------------------------------------------------
 // 3. Inventaris Celengan & NFC Chip (/admin/celengan)
 // ------------------------------------------------------------------------------
+function makeAutoSerial(cat: string) {
+  const isCard = cat.includes('card')
+  const prefix = isCard ? 'CRD' : 'CBF'
+  const year = new Date().getFullYear()
+  const randNum = Math.floor(1000 + Math.random() * 9000)
+  return `${prefix}-${year}-${randNum}`
+}
+
 function AdminInventoryPage({
   banks,
+  orders,
+  allUsers,
   refresh,
 }: {
   banks: PiggyBank[]
+  orders: PiggyBankOrder[]
+  allUsers: Profile[]
   refresh: () => Promise<void>
 }) {
-  const [serial, setSerial] = useState('')
+  const [category, setCategory] = useState('chillbank-classic')
+  const [serial, setSerial] = useState(() => makeAutoSerial('chillbank-classic'))
   const [name, setName] = useState('Celengan Chillbank')
-  const [category, setCategory] = useState('smart-classic')
+  const [selectedTarget, setSelectedTarget] = useState('')
   const [owner, setOwner] = useState('')
   const [busy, setBusy] = useState(false)
   const [msg, setMsg] = useState('')
   const [err, setErr] = useState('')
   const [search, setSearch] = useState('')
+  const [nfcWritingId, setNfcWritingId] = useState<string | null>(null)
+
+  function handleAutoGenerateSerial(cat = category) {
+    setSerial(makeAutoSerial(cat))
+  }
+
+  function handleSelectTarget(val: string) {
+    setSelectedTarget(val)
+    if (!val) {
+      setOwner('')
+      setName('Celengan Chillbank')
+      return
+    }
+
+    if (val.startsWith('order:')) {
+      const orderId = val.replace('order:', '')
+      const ord = orders.find((o) => o.id === orderId)
+      if (ord) {
+        setOwner(ord.user_id) // Tetap simpan UUID unik pengguna pemesan
+        setName(`Celengan ${ord.recipient_name}`) // Nama identitas dari pemesan
+        if (ord.product_model) {
+          const matched = CELENGAN_CATALOG.find((c) =>
+            ord.product_model?.toLowerCase().includes(c.name.toLowerCase())
+          )
+          if (matched) {
+            setCategory(matched.id)
+            setSerial(makeAutoSerial(matched.id))
+          }
+        }
+      }
+    } else if (val.startsWith('user:')) {
+      const uid = val.replace('user:', '')
+      const usr = allUsers.find((u) => u.id === uid)
+      if (usr) {
+        setOwner(usr.id) // Tetap simpan UUID unik
+        setName(`Celengan ${usr.full_name || 'Keluarga'}`)
+      }
+    }
+  }
 
   async function submitBank(e: FormEvent) {
     e.preventDefault()
@@ -2668,13 +2720,33 @@ function AdminInventoryPage({
         p_nfc_uid: null,
       })
       if (rpcErr) throw rpcErr
-      setMsg(`Celengan baru berhasil didaftarkan! (ID: ${data})`)
-      setSerial('')
+      setMsg(`Celengan & Kartu ${serial} berhasil didaftarkan! (ID: ${data})`)
+      // Otomatis generate nomor seri baru untuk kartu berikutnya
+      setSerial(makeAutoSerial(category))
+      setSelectedTarget('')
+      setOwner('')
+      setName('Celengan Chillbank')
       await refresh()
     } catch (e: any) {
       setErr(errorText(e))
     } finally {
       setBusy(false)
+    }
+  }
+
+  async function handleWriteNfcTag(bankSerial: string) {
+    if (!isWebNfcSupported()) {
+      alert('Perangkat/browser ini belum mendukung Web NFC. Silakan gunakan Google Chrome di smartphone Android.')
+      return
+    }
+    setNfcWritingId(bankSerial)
+    try {
+      const ok = await writeNfcTag(bankSerial)
+      if (ok) alert(`Berhasil memprogram chip NFC NTAG213 untuk nomor seri ${bankSerial}!`)
+    } catch (e: any) {
+      alert(`Gagal menulis NFC: ${e?.message || 'Pastikan chip NTAG213 berada di dekat antena HP'}`)
+    } finally {
+      setNfcWritingId(null)
     }
   }
 
@@ -2684,65 +2756,145 @@ function AdminInventoryPage({
       b.name.toLowerCase().includes(search.toLowerCase())
   )
 
+  const pendingOrders = orders.filter((o) => ['pending', 'confirmed', 'processing'].includes(o.status))
+  const otherOrders = orders.filter((o) => !['pending', 'confirmed', 'processing'].includes(o.status))
+
   return (
     <>
       <div className="page-heading">
         <div>
           <div className="eyebrow">HARDWARE & INVENTARIS FISIK</div>
-          <h1>Inventaris Celengan & Chip NFC</h1>
-          <p>Registrasi produk celengan baru, pemetaan serial number, dan penautan chip NFC NTAG213.</p>
+          <h1>Inventaris Celengan & Registrasi Kartu NFC</h1>
+          <p>Registrasi produk fisik dengan nomor seri otomatis, penautan akun pemesan (UUID), dan pilihan 7 model perangkat.</p>
         </div>
       </div>
 
       <div className="dashboard-columns">
-        {/* Form Pendaftaran */}
+        {/* Form Pendaftaran Cepat */}
         <section className="panel">
           <div className="panel-heading">
             <div>
-              <h3>Registrasi Celengan Fisik Baru</h3>
-              <p>Generate serial number unik celengan fisik</p>
+              <h3>Registrasi Celengan & Kartu Baru</h3>
+              <p>Serial otomatis & penautan instan ke pemesan</p>
             </div>
           </div>
 
           <form className="stack-form" onSubmit={submitBank}>
-            <Field
-              label="Nomor Seri Unik (Serial Number)"
-              placeholder="Contoh: CBF-1001"
-              value={serial}
-              onChange={(e) => setSerial(e.target.value.toUpperCase())}
-              required
-              minLength={3}
-              maxLength={40}
-            />
-
-            <Field
-              label="Nama Identitas Celengan"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              required
-            />
-
+            {/* 1. Pilih Pemesan / User Member */}
             <div className="field">
-              <span>Model / Varian Celengan</span>
-              <select value={category} onChange={(e) => setCategory(e.target.value)}>
-                <option value="smart-classic">Chillbank Smart Classic (Tabung)</option>
-                <option value="smart-box">Chillbank Wooden Family Edition (Kayu)</option>
-                <option value="junior-edition">Chillbank Junior Kids Edition (Karakter)</option>
+              <span>Pilih Pemesan / Member (Otomatis Isi Nama & UUID)</span>
+              <select value={selectedTarget} onChange={(e) => handleSelectTarget(e.target.value)}>
+                <option value="">-- Belum Ditautkan (Stok Baru / Siap Jual) --</option>
+                {pendingOrders.length > 0 && (
+                  <optgroup label="📦 Pesanan Menunggu Diproses">
+                    {pendingOrders.map((o) => (
+                      <option key={`order-${o.id}`} value={`order:${o.id}`}>
+                        #{o.id.slice(0, 6).toUpperCase()} • {o.recipient_name} ({o.product_model || 'Celengan'})
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                {otherOrders.length > 0 && (
+                  <optgroup label="📋 Riwayat Pesanan Lainnya">
+                    {otherOrders.map((o) => (
+                      <option key={`order-${o.id}`} value={`order:${o.id}`}>
+                        #{o.id.slice(0, 6).toUpperCase()} • {o.recipient_name}
+                      </option>
+                    ))}
+                  </optgroup>
+                )}
+                <optgroup label="👥 Daftar User Terdaftar (Keluarga)">
+                  {allUsers.map((u) => (
+                    <option key={`user-${u.id}`} value={`user:${u.id}`}>
+                      {u.full_name || 'Member Chillbank'} ({u.role}) — {u.phone || u.id.slice(0, 8)}
+                    </option>
+                  ))}
+                </optgroup>
               </select>
             </div>
 
+            {/* Status UUID yang tertaut */}
+            {owner ? (
+              <div style={{ background: 'var(--primary-light)', padding: '8px 12px', borderRadius: 'var(--radius-md)', fontSize: '0.8rem', color: 'var(--forest)' }}>
+                ✓ <b>UUID Pemilik Tertaut:</b> <code>{owner}</code>
+                <small style={{ display: 'block', color: 'var(--text-muted)', marginTop: 2 }}>
+                  Nama di atas adalah identitas visual; chip NFC dan database tetap menyimpan UUID unik ini.
+                </small>
+              </div>
+            ) : (
+              <div style={{ background: 'var(--bg-page)', padding: '8px 12px', borderRadius: 'var(--radius-md)', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                ℹ️ Celengan didaftarkan tanpa pemilik (siap dihubungkan kemudian hari oleh anggota).
+              </div>
+            )}
+
+            {/* 2. Nama Identitas Celengan */}
             <Field
-              label="UUID Akun Pemilik (Opsional)"
-              placeholder="Kosongkan jika celengan siap jual / belum ditautkan"
-              value={owner}
-              onChange={(e) => setOwner(e.target.value)}
+              label="Nama Identitas Celengan (Bisa Disesuaikan)"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              required
+              placeholder="Contoh: Celengan Budi Santoso"
             />
+
+            {/* 3. Serial Number Otomatis */}
+            <div>
+              <span style={{ fontSize: '0.88rem', fontWeight: 600, display: 'block', marginBottom: 4 }}>
+                Nomor Seri Unik (Otomatis Dibuat)
+              </span>
+              <div style={{ display: 'flex', gap: 8, alignItems: 'stretch' }}>
+                <input
+                  value={serial}
+                  onChange={(e) => setSerial(e.target.value.toUpperCase())}
+                  required
+                  minLength={3}
+                  maxLength={40}
+                  style={{
+                    flex: 1,
+                    padding: '10px 14px',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border-light)',
+                    fontWeight: 700,
+                    letterSpacing: '0.05em',
+                    fontFamily: 'monospace',
+                  }}
+                />
+                <Button
+                  type="button"
+                  kind="secondary"
+                  onClick={() => handleAutoGenerateSerial(category)}
+                  title="Generate nomor seri baru"
+                >
+                  <Sparkles size={16} /> Acak Serial
+                </Button>
+              </div>
+            </div>
+
+            {/* 4. Model Produk (7 Model) */}
+            <div className="field">
+              <span>Model Perangkat Fisik (7 Varian Model)</span>
+              <select
+                value={category}
+                onChange={(e) => {
+                  const newCat = e.target.value
+                  setCategory(newCat)
+                  handleAutoGenerateSerial(newCat)
+                }}
+              >
+                <option value="chillbank-classic">1. Chillbank Smart Classic (Tabung ABS Minimalis)</option>
+                <option value="chillbank-wooden">2. Chillbank Wooden Family Edition (Kayu Pinus Solid)</option>
+                <option value="chillbank-junior">3. Chillbank Junior Kids Edition (Karakter Edukasi)</option>
+                <option value="chillbank-card">4. Chillbank Smart Savings Card (Kartu Tipis Tap ATM)</option>
+                <option value="chillbank-acrylic">5. Chillbank Acrylic Crystal Vault (Akrilik Transparan)</option>
+                <option value="chillbank-leather">6. Chillbank Executive Leather Safe (Dompet Kulit)</option>
+                <option value="chillbank-titanium">7. Chillbank Titanium Safe Edition (Brankas Logam)</option>
+              </select>
+            </div>
 
             {err && <div className="form-error">{err}</div>}
             {msg && <div className="form-success">{msg}</div>}
 
             <Button type="submit" disabled={busy} className="button-full">
-              {busy ? 'Mendaftarkan...' : 'Daftarkan Celengan Baru'}
+              {busy ? 'Mendaftarkan Perangkat...' : 'Daftarkan Celengan / Kartu Baru'}
             </Button>
           </form>
         </section>
@@ -2751,14 +2903,14 @@ function AdminInventoryPage({
         <section className="panel">
           <div className="panel-heading">
             <div>
-              <h3>Daftar Celengan ({banks.length})</h3>
-              <p>Perangkat terdaftar di sistem cloud</p>
+              <h3>Daftar Inventaris ({banks.length})</h3>
+              <p>Perangkat terdaftar & kontrol pemrograman NFC</p>
             </div>
           </div>
 
           <div style={{ marginBottom: 14 }}>
             <input
-              placeholder="Cari nomor seri atau nama celengan..."
+              placeholder="Cari nomor seri, model, atau nama..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               style={{
@@ -2771,33 +2923,49 @@ function AdminInventoryPage({
             />
           </div>
 
-          <div className="bank-list" style={{ maxHeight: 520, overflowY: 'auto' }}>
+          <div className="bank-list" style={{ maxHeight: 560, overflowY: 'auto' }}>
             {filteredBanks.map((b) => (
-              <div className="bank-row" key={b.id}>
-                <div className="bank-icon-box">
+              <div className="bank-row" key={b.id} style={{ alignItems: 'flex-start' }}>
+                <div className="bank-icon-box" style={{ marginTop: 2 }}>
                   <SmartphoneNfc size={20} />
                 </div>
                 <div className="bank-row-main">
                   <b>{b.name}</b>
-                  <small>
-                    <code>{b.serial}</code> • {b.category} • Pemilik: {b.owner_id ? b.owner_id.slice(0, 8) : 'Belum Ditautkan'}
+                  <small style={{ display: 'block', margin: '2px 0' }}>
+                    <code style={{ fontWeight: 700 }}>{b.serial}</code> • {b.category}
+                  </small>
+                  <small style={{ color: 'var(--text-muted)' }}>
+                    Pemilik UUID: {b.owner_id ? <code>{b.owner_id.slice(0, 8)}...</code> : 'Belum Ditautkan'}
                   </small>
                 </div>
-                <div style={{ display: 'flex', gap: 6, alignItems: 'center' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, alignItems: 'flex-end' }}>
                   <span className="badge badge-emerald">{b.status}</span>
-                  <Link
-                    to={`/c/${encodeURIComponent(b.serial)}`}
-                    target="_blank"
-                    className="button button-ghost button-small"
-                    title="Buka Halaman Celengan"
-                  >
-                    <ArrowUpRight size={14} />
-                  </Link>
+                  <div style={{ display: 'flex', gap: 6 }}>
+                    <Button
+                      kind="ghost"
+                      className="button-small"
+                      title="Tulis URL ke Chip NFC NTAG213"
+                      disabled={nfcWritingId === b.serial}
+                      onClick={() => handleWriteNfcTag(b.serial)}
+                      style={{ padding: '4px 8px', fontSize: '0.75rem' }}
+                    >
+                      <Radio size={13} /> {nfcWritingId === b.serial ? 'Menulis...' : 'Tulis NFC'}
+                    </Button>
+                    <Link
+                      to={`/c/${encodeURIComponent(b.serial)}`}
+                      target="_blank"
+                      className="button button-ghost button-small"
+                      title="Buka Halaman Celengan"
+                      style={{ padding: '4px 8px' }}
+                    >
+                      <ArrowUpRight size={14} />
+                    </Link>
+                  </div>
                 </div>
               </div>
             ))}
             {!filteredBanks.length && (
-              <EmptyState icon={<Wallet size={36} />} title="Celengan Tidak Ditemukan" text="Coba gunakan kata kunci nomor seri lain." />
+              <EmptyState icon={<Wallet size={36} />} title="Celengan Tidak Ditemukan" text="Coba gunakan kata kunci pencarian lain." />
             )}
           </div>
         </section>
@@ -3376,7 +3544,12 @@ export default function App() {
                 <Navigate replace to="/app" />
               ) : (
                 <AppShell profile={profile!} onLogout={handleLogout} onOpenScan={() => setShowScanner(true)}>
-                  <AdminInventoryPage banks={banks} refresh={refresh} />
+                  <AdminInventoryPage
+                    banks={banks}
+                    orders={orders}
+                    allUsers={allUsers}
+                    refresh={refresh}
+                  />
                 </AppShell>
               )}
             </Protected>
