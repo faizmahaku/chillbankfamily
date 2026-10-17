@@ -95,6 +95,9 @@ create index if not exists idx_goals_user on public.savings_goals(user_id);
 create index if not exists idx_orders_user_created on public.piggy_bank_orders(user_id, created_at desc);
 
 -- 8. TRIGGER OTOMATIS: BUAT PROFIL SAAT USER BARU MENDAFTAR
+drop trigger if exists on_auth_user_created on auth.users;
+drop function if exists public.handle_new_user() cascade;
+
 create or replace function public.handle_new_user()
 returns trigger
 language plpgsql
@@ -121,12 +124,14 @@ begin
 end;
 $$;
 
-drop trigger if exists on_auth_user_created on auth.users;
 create trigger on_auth_user_created
 after insert on auth.users
 for each row execute function public.handle_new_user();
 
 -- 9. TRIGGER: KEAMANAN ROLE PROFIL (NON-ADMIN TIDAK BISA SELF-PROMOTE JADI ADMIN)
+drop trigger if exists protect_profile_role_trigger on public.profiles;
+drop function if exists public.protect_profile_role() cascade;
+
 create or replace function public.protect_profile_role()
 returns trigger
 language plpgsql
@@ -145,12 +150,13 @@ begin
 end;
 $$;
 
-drop trigger if exists protect_profile_role_trigger on public.profiles;
 create trigger protect_profile_role_trigger
 before update on public.profiles
 for each row execute function public.protect_profile_role();
 
 -- 10. RPC: JARING PENGAMAN PROFIL (MEMASTIKAN PROFIL TERSEDIA SAAT LOGIN)
+drop function if exists public.ensure_my_profile() cascade;
+
 create or replace function public.ensure_my_profile()
 returns void
 language plpgsql
@@ -175,6 +181,8 @@ revoke all on function public.ensure_my_profile() from public, anon;
 grant execute on function public.ensure_my_profile() to authenticated;
 
 -- 11. RPC: TAMBAH TRANSAKSI SETOR / TARIK TABUNGAN DENGAN LOCK CONCURRENCY
+drop function if exists public.add_savings_entry(uuid, text, bigint, text) cascade;
+
 create or replace function public.add_savings_entry(
   p_piggy_bank_id uuid,
   p_entry_type text,
@@ -229,6 +237,10 @@ $$;
 grant execute on function public.add_savings_entry(uuid, text, bigint, text) to authenticated;
 
 -- 12. RPC: ADMIN MEMBUAT / MENDAFTARKAN CELENGAN & PROGRAMMING NFC NTAG213
+-- Drop versi lama dengan 3 parameter maupun 6 parameter agar tidak bentrok
+drop function if exists public.admin_create_bank(text, text, uuid) cascade;
+drop function if exists public.admin_create_bank(text, text, uuid, text, text, text) cascade;
+
 create or replace function public.admin_create_bank(
   p_serial text,
   p_name text default 'Celengan Chillbank',
@@ -268,6 +280,9 @@ $$;
 grant execute on function public.admin_create_bank(text, text, uuid, text, text, text) to authenticated;
 
 -- 13. RPC: LOOKUP PUBLIK UNTUK SCAN NFC / QR CELENGAN
+-- Drop fungsi lama terlebih dahulu karena tipe kolom OUT / RETURNS TABLE diperbarui
+drop function if exists public.public_bank_lookup(text) cascade;
+
 create or replace function public.public_bank_lookup(p_serial text)
 returns table(
   serial text,
